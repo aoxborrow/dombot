@@ -14,7 +14,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  CircleX,
+  CircleAlert,
   Clock,
   Copy,
   Ellipsis,
@@ -40,7 +40,7 @@ import {
 import { cn } from '@/lib/utils';
 import { RegistrarLogo } from '../../components/RegistrarLogo';
 import { useAppStore } from '../../store/app';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { isDemo } from '../../lib/platform';
 import { timeAgo } from '../../lib/time';
 import { isStale, useSyncState } from '../../lib/sync-state';
@@ -89,6 +89,8 @@ export default function RegistrarsSettings() {
   const registrars = useAppStore((s) => s.registrars);
   const loadRegistrars = useAppStore((s) => s.loadRegistrars);
   const syncRegistrar = useAppStore((s) => s.syncRegistrar);
+  // A link to one account's card (a market account's registrar link).
+  const focusId = useSearchParams()[0].get('account');
   const [catalog, setCatalog] = useState<RegistrarDefinition[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   // The one unsaved account being added. It lives only here: nothing is
@@ -218,6 +220,7 @@ export default function RegistrarsSettings() {
             hasSiblings={hasSiblings}
             proxy={proxy}
             firstSync={syncingIds.has(idOf(account))}
+            focus={idOf(account) === focusId}
           />
         ))}
         {loaded && cards.length === 0 && !draft && <EmptyRegistrars />}
@@ -314,6 +317,7 @@ function AccountCard({
   hasSiblings,
   proxy,
   firstSync,
+  focus = false,
 }: {
   provider: RegistrarDefinition;
   account: RegistrarMeta;
@@ -321,12 +325,21 @@ function AccountCard({
   hasSiblings: boolean;
   proxy: ProxySettings['proxy'];
   firstSync: boolean;
+  /** Linked to (`?account=`): starts open, scrolled into view. */
+  focus?: boolean;
 }) {
   const syncRegistrar = useAppStore((s) => s.syncRegistrar);
   const setRegistrarEnabled = useAppStore((s) => s.setRegistrarEnabled);
   const loadRegistrars = useAppStore((s) => s.loadRegistrars);
   const refreshCache = useAppStore((s) => s.applyPortfolioCacheUpdate);
+  const loadMarkets = useAppStore((s) => s.loadMarkets);
   const id = idOf(account);
+  // Market accounts on this account's key (Dynadot's), removed with it.
+  const marketAccounts = useAppStore((s) => s.marketAccounts);
+  const linkedMarkets = useMemo(
+    () => (marketAccounts ?? []).filter((m) => m.registrarAccountId === id),
+    [marketAccounts, id],
+  );
   const currentLabel = account.accountLabel ?? '';
   const [values, setValues] = useState<CredentialValues>({});
   const [original, setOriginal] = useState<CredentialValues>({});
@@ -339,7 +352,11 @@ function AccountCard({
   const menuOpen = useRef(false);
   const [renaming, setRenaming] = useState(false);
   const [nicknameError, setNicknameError] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(focus);
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focus) cardRef.current?.scrollIntoView({ block: 'start' });
+  }, [focus]);
   const [saving, setSaving] = useState(false);
   const [syncingHere, setSyncing] = useState(false);
   const [toggling, setToggling] = useState(false);
@@ -495,6 +512,7 @@ function AccountCard({
       await window.api.removeRegistrarAccount(id);
       await loadRegistrars();
       await refreshCache();
+      if (linkedMarkets.length) await loadMarkets().catch(() => {});
     } catch (err) {
       // On success the card unmounts; only a failure leaves state to reset.
       setRemoveError(errorMessage(err));
@@ -530,7 +548,10 @@ function AccountCard({
   const hasNickname = !isAutoLabel(currentLabel);
 
   return (
-    <Card className="@container gap-0 overflow-hidden rounded-md py-0">
+    <Card
+      ref={cardRef}
+      className="@container scroll-mt-4 gap-0 overflow-hidden rounded-md py-0"
+    >
       <Collapsible
         open={open}
         onOpenChange={(next) => {
@@ -698,7 +719,7 @@ function AccountCard({
             {deferred ? (
               <Clock className="mt-0.5 size-4 shrink-0 text-amber-500 dark:text-amber-400" />
             ) : (
-              <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" />
+              <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
             )}
             <span className="min-w-0 break-words">
               {sync.lastError}
@@ -789,7 +810,7 @@ function AccountCard({
       {removing && (
         <ConfirmDialog
           title={`Remove ${title}?`}
-          description={`DomBot forgets this account's credentials and cached domains. The domains stay at ${provider.displayName}, and you can add the account again later.`}
+          description={`DomBot forgets this account's credentials and cached domains${linkedMarkets.length ? `, and removes the ${linkedMarkets.map((m) => m.label).join(' and ')} market account that uses its key` : ''}. The domains stay at ${provider.displayName}, and you can add the account again later.`}
           actionLabel="Remove account"
           busyLabel="Removing…"
           busy={saving}
@@ -1408,7 +1429,7 @@ function SyncStatus({
   if (lastError) {
     return (
       <span className="flex items-center gap-1.5">
-        <CircleX className="size-3.5 shrink-0 text-destructive" />
+        <CircleAlert className="size-3.5 shrink-0 text-destructive" />
         <span className="text-[13px] font-medium text-destructive">
           Sync failed
         </span>

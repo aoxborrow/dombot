@@ -542,28 +542,21 @@ can't fetch a code for a name held at Atom.
 
 ### One provider, registrar and market
 
-Dynadot and Namecheap are both registrars and markets, and DomBot will add
-their marketplace APIs. Where one API key covers both sides, DomBot shouldn't
-make the user enter it twice or keep two cards in step. (Atom was the first
-case considered, but its registrar API takes its own token; see
-[atom-registrar.md](atom-registrar.md).) So:
+Where one provider is both a registrar and a market and one API key covers
+both sides, DomBot doesn't make the user enter it twice. Dynadot is built
+this way ([dynadot-marketplace-api.md](dynadot-marketplace-api.md)). Atom
+isn't one: its registrar API takes its own token
+([atom-registrar.md](atom-registrar.md)), so the Atom market account keeps
+its own key. For a provider that is:
 
-- **A market account can be backed by a registrar account.** It stores
-  `registrarAccountId` instead of its own credentials, and reads them from
-  `registrar-credentials` at call time. Rotating the key on the registrar card
-  fixes both.
-- **The link also says the names are the same account's.** For a linked pair,
-  DomBot knows which registrar account holds a listed name without matching by
-  name across accounts, which makes listing (set the market's nameservers,
-  verify) and the nameserver checks exact.
-- **Settings:** the registrar card for such a provider gets a "Marketplace"
-  row ("Also sell on Dynadot": off or on), and the market card shows "Uses
-  the Dynadot registrar key" with a link back. Markets with no registrar side
-  (Afternic, Sedo, Atom) are unaffected.
+- **A market account is backed by a registrar account.** It stores
+  `registrarAccountId` instead of its own credentials and calls with that
+  account's key. Rotating the key on the registrar card fixes both.
+- **Settings:** the market account is added by picking the registrar
+  account, and its card links to the registrar card. Removing the registrar
+  account removes the market account too.
 - **Enable separately.** Selling stays opt-in per account even when the key
   allows it: turning on a registrar account never starts listing sync.
-- **Removing** a registrar account that backs a market account asks whether
-  to remove both, or keep the market account and enter its own key.
 - **MCP:** `market_list` shows `registrarAccountId` for linked accounts, so an
   agent can go from a listing to the registrar tools for the same name.
 - **Code stays split:** the registrar side in registrar-client, the market

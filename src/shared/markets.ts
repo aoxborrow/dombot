@@ -1,6 +1,6 @@
 import type { CurrencyCode } from './currencies';
 import { normalizeNameserver } from './domain-name';
-import type { RegistrarConfigField } from './ipc';
+import type { RegistrarConfigField, RegistrarName } from './ipc';
 
 // The shared market model (docs/markets.md). Each market's client speaks its
 // own API in its own types; an adapter per market
@@ -23,7 +23,7 @@ export type AfternicFastTransferStatus =
   | 'USER_EXCLUDED'
   | 'UNKNOWN';
 
-export type MarketId = 'afternic' | 'atom' | 'sedo';
+export type MarketId = 'afternic' | 'atom' | 'dynadot' | 'sedo';
 
 /** A canonical decimal string, as DomBot's ListPrice ("2500", "1479.09"). */
 export type Amount = string;
@@ -125,7 +125,28 @@ export interface AtomExtra {
   syndicationAuthorized: boolean | null;
 }
 
-export type MarketExtra = AfternicExtra | AtomExtra | SedoExtra;
+export interface DynadotExtra {
+  market: 'dynadot';
+  /**
+   * Where the name is: in the Dynadot account the market account uses, or
+   * at another registrar, listed through Dynadot's open marketplace.
+   */
+  held: 'dynadot' | 'elsewhere';
+  /** Dynadot's listing id (names in the account only). */
+  listingId: string | null;
+  /** Make Offer is on, alone or beside Buy Now. */
+  offers: boolean;
+  /** A buyer's purchase is under way (names in the account only). */
+  pendingSale: boolean;
+  /** Dynadot has verified ownership; null for names in the account. */
+  verified: boolean | null;
+  /** The registrar Dynadot sees, for a name held elsewhere. */
+  registrar: string | null;
+  /** Dynadot's transfer status for a name held elsewhere, when it has one. */
+  transferStatus: string | null;
+}
+
+export type MarketExtra = AfternicExtra | AtomExtra | DynadotExtra | SedoExtra;
 
 /** A listing's GoDaddy search counts, when its market sends them. */
 export function searchesOf(l: MarketListing): AfternicExtra['searches'] | null {
@@ -326,6 +347,12 @@ export interface MarketInfo {
    * client. The first set is the one to point a name at.
    */
   nameservers: MarketNameservers[];
+  /**
+   * The market runs on this registrar's API with the same key (Dynadot): an
+   * account picks one of that registrar's accounts instead of entering
+   * credentials, and uses its key and proxy route.
+   */
+  registrar?: RegistrarName;
 }
 
 /** A set of nameservers a market publishes (or assigns, as a pattern). */
@@ -386,8 +413,11 @@ export interface MarketAccount {
   label: string;
   /** Off: kept, but not synced and not shown. */
   enabled: boolean;
-  /** A registrar account whose key this market account uses, for a provider
-   *  whose one key covers both (not Atom: its registrar API has its own). */
+  /**
+   * The registrar account whose key this market account uses, for a market
+   * that runs on a registrar's API (`MarketInfo.registrar`). It has no
+   * credentials of its own then.
+   */
   registrarAccountId?: string | null;
   /** The account's Ownership Verification ID, as read out of what was pasted. */
   verificationId?: string | null;
@@ -409,6 +439,12 @@ export interface MarketSyncState {
   notes: string[];
   /** What the account has, from its last test or sync. */
   status?: MarketStatusFlag[];
+  /**
+   * The days of sales read so far, on a market whose history is read a year
+   * at a time: back to `from`, up to `to`, the day of the latest read. Until
+   * `from` reaches the market's start, each sync reads further back.
+   */
+  salesRead?: { from: string; to: string };
 }
 
 /** A market account with what Settings needs to draw its card. */

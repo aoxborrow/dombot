@@ -115,6 +115,13 @@ function decimal(n: number, currency: string | null): string {
   return (n / SCALE).toFixed(places);
 }
 
+/** An amount in the currency's places, as markets don't always write them
+ *  out ("89.7" → "89.70", "299" → "299.00"). */
+const inPlaces = (amount: string | null, currency: string | null) => {
+  const n = units(amount);
+  return n === null ? amount : decimal(n, currency);
+};
+
 // ── building ────────────────────────────────────────────────────────────────
 
 const DAY = 86_400_000;
@@ -300,10 +307,10 @@ function toRecord(
     authCodeSent: sale?.authCodeSent === true,
     kind: sale?.kind ?? 'unknown',
     currency,
-    price,
-    fees,
+    price: inPlaces(price, currency),
+    fees: inPlaces(fees, currency),
     feesEstimated: !ownFees && (fromMarket?.commissionEstimated ?? false),
-    net,
+    net: inPlaces(net, currency),
     paidOutOn: sale?.paidOutOn ?? null,
     installments: sale?.installments ?? null,
     registrarAccountId: h.account,

@@ -30,7 +30,6 @@ import {
   statusWord,
   type DateOrder,
   type ImportStatus,
-  type RegistrarName,
 } from './import-values';
 import type { ImportRow } from './ipc';
 import type { NumberFormatId } from './money';
@@ -131,10 +130,16 @@ export interface ImportSetup {
   defaults: ImportDefaults;
 }
 
+export interface RegistrarName {
+  id: string;
+  displayName: string;
+}
+
 export interface ImportContext {
   preferredCurrency: string;
   numberFormat: NumberFormatId;
-  /** The registrars DomBot knows, for matching a registrar cell. */
+  /** The user's registrars, for the default registrar picker. Cells match
+   *  every registrar DomBot knows (`readRegistrar`). */
   registrars: RegistrarName[];
   /** `YYYY-MM-DD`, for "in the future" warnings. */
   today: string;
@@ -293,9 +298,7 @@ function readRow(
 
   const registrarCell =
     cells.registrar?.trim() || setup.defaults.registrar?.trim();
-  const registrar = registrarCell
-    ? readRegistrar(registrarCell, ctx.registrars)
-    : null;
+  const registrar = registrarCell ? readRegistrar(registrarCell) : null;
   const registration: NonNullable<ImportRow['registration']> = {};
   if (registrar && 'id' in registrar) registration.registrar = registrar.id;
   if (registrar && 'label' in registrar)

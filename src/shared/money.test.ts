@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatAmountInput,
   formatMoney,
+  formatMoneyNumber,
   parseCanonicalAmount,
   parseLocalizedAmount,
   parsePurchaseDate,
@@ -29,6 +30,31 @@ describe('formatMoney', () => {
     expect(formatAmountInput('1234.56', 'USD', 'si')).toBe('1 234.56');
     expect(formatAmountInput('1234.56', 'CHF', 'ch')).toBe("1'234.56");
     expect(formatAmountInput('1234.56', 'EUR', 'ch-comma')).toBe("1'234,56");
+  });
+});
+
+describe('formatMoneyNumber', () => {
+  it('writes out the currency’s decimals', () => {
+    expect(formatMoneyNumber(45, 'USD', 'USD', 'us')).toBe('$45.00');
+    expect(formatMoneyNumber(11.4, 'USD', 'USD', 'us')).toBe('$11.40');
+    expect(formatMoneyNumber(1500, 'JPY', 'USD', 'us')).toBe('¥1,500 JPY');
+    expect(formatMoneyNumber(1.25, 'KWD', 'USD', 'us')).toBe('KWD1.250');
+  });
+
+  it('rounds a float sum rather than cutting it off', () => {
+    expect(formatMoneyNumber(0.7 + 0.1, 'USD', 'USD', 'us')).toBe('$0.80');
+    expect(formatMoneyNumber(12.999, 'USD', 'USD', 'us')).toBe('$13.00');
+  });
+
+  it('follows the number format and shows a shared symbol’s code', () => {
+    expect(formatMoneyNumber(1234.5, 'EUR', 'EUR', 'eu-dot')).toBe('€1.234,50');
+    expect(formatMoneyNumber(12.99, 'CAD', 'USD', 'us')).toBe('$12.99 CAD');
+  });
+
+  it('rounds to whole amounts and signs a loss', () => {
+    expect(formatMoneyNumber(1240.5, 'USD', 'USD', 'us', true)).toBe('$1,241');
+    expect(formatMoneyNumber(-89.7, 'USD', 'USD', 'us')).toBe('−$89.70');
+    expect(formatMoneyNumber(-0.001, 'USD', 'USD', 'us')).toBe('$0.00');
   });
 });
 

@@ -40,9 +40,8 @@ design in atom-api.md (a market account borrowing the registrar key through
 - An Atom registrar account stores its token in `registrar-credentials` like
   every other registrar. The Atom market account keeps its own
   `market-credentials` entry. Neither card mentions the other.
-- `MarketAccount.registrarAccountId` (commented "Atom, later") stays unused
-  for Atom. Keep it for Dynadot or Namecheap if their market and registrar
-  sides share a key, or drop it if they don't either.
+- `MarketAccount.registrarAccountId` stays empty for Atom. It's for markets
+  that run on a registrar's key, as Dynadot's does.
 
 What already connects them, with no link:
 

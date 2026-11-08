@@ -12,6 +12,9 @@ bulk writes, MCP). Each market's own API, quirks and client are in its plan:
 - [sedo-api.md](sedo-api.md): client and adapter built
   (`src/core/markets/sedo/`, `src/core/services/markets/sedo.ts`), verified
   live (reads and writes).
+- [dynadot-marketplace-api.md](dynadot-marketplace-api.md): reads built, on the
+  Dynadot registrar account's key; sells names held at Dynadot and at
+  other registrars.
 
 Atom's and Sedo's plans each proposed a first cut of shared types. This doc
 replaces both; where they disagreed, the choice and the reason are below.
@@ -39,7 +42,7 @@ capability flags.
 `src/core/markets/types.ts`, abridged; the file is the reference.
 
 ```ts
-type MarketId = 'afternic' | 'atom' | 'sedo';
+type MarketId = 'afternic' | 'atom' | 'dynadot' | 'sedo';
 
 /** Canonical decimal strings, as DomBot's ListPrice ("2500", "1479.09"). */
 type Amount = string;
@@ -278,12 +281,10 @@ Following docs/storage-model.md:
 - **Credentials** follow the Afternic plan: the desktop host only seals the
   namespaces it lists, so `market-credentials` goes in that set, and data
   bundles treat it like `registrar-credentials`.
-- **`registrarAccountId`** (from the Atom plan) lets a market account borrow a
-  registrar account's key when one provider is both and one key covers both
-  sides (Dynadot or Namecheap, if theirs do). Atom's doesn't: its registrar
-  API takes its own token ([atom-registrar.md](atom-registrar.md)). The
-  field is in the record from the start; the Settings flow for it comes with
-  the first such market.
+- **`registrarAccountId`** lets a market account borrow a registrar
+  account's key when one provider is both and one key covers both sides, as
+  Dynadot's does (dynadot-marketplace-api.md). Atom's doesn't: its registrar
+  API takes its own token ([atom-registrar.md](atom-registrar.md)).
 - **Sales become `sold` events.** A completed sale writes one `sold` event
   (source `sync`, date `soldOn`, amount `price`, `currency`), and so does one
   whose name has moved: the market is on to the payout (`action: 'payout'`)
@@ -319,7 +320,17 @@ Following docs/storage-model.md:
   one it no longer lists is dropped (a pending insert stays, as in sync), and
   an account that fails keeps its rows and is named in the toast. Atom reads
   one name per call, so there only names it already lists are re-read.
-- Sales: full history once, then from the newest `soldOn` minus a week.
+- Sales: full history once, then from the newest `soldOn` minus 45 days.
+  Afternic filters by date, so its history is read a calendar year at a
+  time, newest first, back to 2000 (`salesHistoryFrom`): a big seller's
+  whole history in one request outlasted the timeout. Each year is stored as
+  it lands and the account's sync state keeps how far back it got
+  (`salesRead`), so a year that fails leaves a "Sales history … paused" note
+  and the next sync carries on from there. Atom takes no dates and reads
+  everything each time.
+- Timeouts: every registrar and market request gets 90 seconds
+  (`API_TIMEOUT_MS`), retries on top; the renderer gives up on a whole sync
+  after 15 minutes.
 - Account stats: the last few days each sync, a year on first sync.
 - Per-domain stats: a slow background rotation (one call per name: hours for
   10,000 names on Afternic, longer on Atom), prioritizing names the user opens

@@ -430,13 +430,13 @@ const queryShape = {
       'Only domains with a nameserver containing this substring (case-insensitive). Needs the domain enriched with detail; un-enriched domains without list nameservers are excluded.',
     ),
   listedOn: z
-    .enum(['afternic', 'atom', 'sedo'])
+    .enum(['afternic', 'atom', 'dynadot', 'sedo'])
     .optional()
     .describe(
       'Only names listed on this market (any listing status), as of the last market_sync.',
     ),
   notListedOn: z
-    .enum(['afternic', 'atom', 'sedo'])
+    .enum(['afternic', 'atom', 'dynadot', 'sedo'])
     .optional()
     .describe(
       'Only names not listed on this market: the ones you could list there.',
@@ -1229,8 +1229,15 @@ export function registerTools(server: McpServer): void {
       );
       // getDomainDetail returns null only when neither the registrar nor the
       // registry could resolve anything — fall back to a live getDomain so the
-      // error (or record) still comes from the provider.
+      // error (or record) still comes from the provider. Detail goes over the
+      // synced row, which holds what the detail call can't read (Namecheap's
+      // auto-renew).
+      const key = toAscii(domain);
+      const row = getMergedPortfolio().domains.find(
+        (d) => d.accountId === account.id && toAscii(d.domainName) === key,
+      );
       return json({
+        ...(row ?? {}),
         ...(detail ??
           (await getRegistrarClient(r, account.id).getDomain(domain))),
         registrar: r,

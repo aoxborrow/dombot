@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { AFTERNIC_NAMESERVERS } from '../core/markets/afternic/nameservers';
+import { DYNADOT_NAMESERVERS } from '../core/markets/dynadot/nameservers';
 import { SEDO_NAMESERVERS } from '../core/markets/sedo/nameservers';
+import { marketNameserversFor } from './markets';
 import {
   parseVerificationId,
   registrarHostsDns,
@@ -9,6 +11,7 @@ import {
 } from './market-verification';
 
 const SEDO_ID = '0123456789abcdef0123456789abcdef01234567';
+const DYNADOT_KEY = '0123456789abcdef0123456789abcdef';
 
 describe('parseVerificationId', () => {
   it('reads Afternic’s ID out of either value its page shows', () => {
@@ -35,6 +38,21 @@ describe('parseVerificationId', () => {
   it('takes Sedo’s and Atom’s 40-character IDs as they are', () => {
     expect(parseVerificationId('sedo', SEDO_ID)).toBe(SEDO_ID);
     expect(parseVerificationId('atom', SEDO_ID)).toBe(SEDO_ID);
+  });
+
+  it('reads Dynadot’s key out of the key, its NS3 or its CNAME', () => {
+    expect(parseVerificationId('dynadot', DYNADOT_KEY.toUpperCase())).toBe(
+      DYNADOT_KEY,
+    );
+    expect(
+      parseVerificationId('dynadot', `ns3-${DYNADOT_KEY}.dyna-ns.org.`),
+    ).toBe(DYNADOT_KEY);
+    expect(
+      parseVerificationId('dynadot', `ns1-${DYNADOT_KEY}.dyna-ns.net`),
+    ).toBe(DYNADOT_KEY);
+    expect(() => parseVerificationId('dynadot', SEDO_ID, 'Dynadot')).toThrow(
+      /isn’t Dynadot’s Open Marketplace Key/,
+    );
   });
 
   it('clears on a blank value', () => {
@@ -87,6 +105,33 @@ describe('what Apply sets', () => {
         SEDO_ID,
       ),
     ).toEqual(['ns1.sedoparking.com', 'ns2.sedoparking.com']);
+  });
+
+  it('gives Dynadot’s DNS pair, then its NS3 once the key is saved', () => {
+    const dynadot = {
+      id: 'dynadot' as const,
+      nameservers: DYNADOT_NAMESERVERS,
+    };
+    expect(verificationTxt('dynadot', DYNADOT_KEY)).toBe(DYNADOT_KEY);
+    expect(verificationNameservers(dynadot, null)).toEqual([
+      'ns1.dyna-ns.net',
+      'ns2.dyna-ns.net',
+    ]);
+    expect(verificationNameservers(dynadot, DYNADOT_KEY)).toEqual([
+      'ns1.dyna-ns.net',
+      'ns2.dyna-ns.net',
+      `ns3-${DYNADOT_KEY}.dyna-ns.org`,
+    ]);
+  });
+
+  it('counts only Dynadot’s NS3 as the market’s, not its everyday DNS', () => {
+    const markets = [
+      { id: 'dynadot' as const, nameservers: DYNADOT_NAMESERVERS },
+    ];
+    expect(marketNameserversFor('ns1.dyna-ns.net', markets)).toBeNull();
+    expect(
+      marketNameserversFor(`ns3-${DYNADOT_KEY}.dyna-ns.org`, markets)?.market,
+    ).toBe('dynadot');
   });
 });
 

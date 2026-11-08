@@ -23,6 +23,15 @@ export function getStoredCredentials(name: string): RegistrarCredentials {
   return store.get(name) ?? {};
 }
 
+/** Every value saved for every registrar account, for scrubbing diagnostics
+ *  (see stored-secrets.ts). Empty until storage is hydrated. */
+export function storedCredentialValues(): string[] {
+  if (!store.loaded) return [];
+  return Object.values(store.all()).flatMap((creds) =>
+    Object.values(creds).filter((v): v is string => typeof v === 'string'),
+  );
+}
+
 /**
  * Saves credentials for a registrar. Empty/blank fields are dropped; saving an
  * all-empty set clears the registrar entirely. Rejects if the host can't

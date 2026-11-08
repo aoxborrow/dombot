@@ -29,6 +29,9 @@ const fake = {
   savedForSale: true,
   /** Capabilities to override, to stand in for a market other than Afternic. */
   caps: {} as Partial<typeof AFTERNIC_CAPABILITIES>,
+  /** Like Dynadot: lists a pending name once it's verified. */
+  listsVerified: false,
+  listedVerified: [] as string[],
 };
 const listingOf = (name: string, accountId: string): MarketListing => ({
   market: 'afternic',
@@ -128,6 +131,14 @@ vi.mock('./registry', async () => {
               },
             };
       },
+      get listVerified() {
+        if (!fake.listsVerified) return undefined;
+        return async (rows: readonly MarketListing[]) =>
+          rows.map((row) => {
+            fake.listedVerified.push(row.name);
+            return ok(row.name, { ...row, status: 'active' });
+          });
+      },
       // Like Afternic, the sale moves on to the transfer once it has a code.
       setSaleAuthCode: async (saleId: string, code: string) => {
         fake.authCodes.push([saleId, code]);
@@ -196,6 +207,8 @@ beforeEach(async () => {
     asyncInsert: false,
     savedForSale: true,
     caps: {},
+    listsVerified: false,
+    listedVerified: [],
   });
   held.clear();
   applyDomainOp.mockReset();
@@ -354,6 +367,62 @@ describe('requestMarketVerification', () => {
     expect(results[2].error?.message).toMatch(
       /^Not sent: DNS check Request in progress/,
     );
+  });
+
+  it('lists a pending name once the market has verified it (Dynadot)', async () => {
+    fake.caps = { relist: false, verifyDns: true };
+    fake.listsVerified = true;
+    putMarketListings(ID, [listingOf('a.com', ID), listingOf('b.com', ID)]);
+    putMarketListings(ID, [{ ...listingOf('b.com', ID), status: 'active' }]);
+    const results = await writes.requestMarketVerification(ID, ['a.com']);
+    expect(results[0]).toMatchObject({ ok: true, saved: { status: 'active' } });
+    expect(fake.listedVerified).toEqual(['a.com']);
+    expect(marketListings().map((l) => [l.name, l.status])).toEqual([
+      ['a.com', 'active'],
+      ['b.com', 'active'],
+    ]);
+    // A listed name is only rechecked.
+    fake.dnsChecks = [];
+    const [b] = await writes.requestMarketVerification(ID, ['b.com']);
+    expect(b.ok).toBe(true);
+    expect(fake.listedVerified).toEqual(['a.com']);
+  });
+
+  it('keeps what a change to a pending listing leaves out (Dynadot)', async () => {
+    fake.listsVerified = true;
+    putMarketListings(ID, [
+      { ...listingOf('a.com', ID), price: '100', minOffer: '20' },
+      { ...listingOf('b.com', ID), status: 'active' },
+    ]);
+    await writes.writeMarketListings(ID, [
+      { name: 'a.com', price: '150' },
+      { name: 'b.com', price: '150' },
+    ]);
+    expect(fake.written[0]).toEqual([
+      { name: 'a.com', price: '150', minOffer: '20', currency: 'USD' },
+      // Not pending: as asked.
+      { name: 'b.com', price: '150' },
+    ]);
+  });
+
+  it('lists the pending names among an Ownership verification TXT job’s (Dynadot)', async () => {
+    fake.listsVerified = true;
+    putMarketListings(ID, [
+      listingOf('a.com', ID),
+      listingOf('b.com', ID),
+      { ...listingOf('c.com', ID), status: 'active' },
+    ]);
+    await writes.listVerifiedListings(['a.com', 'c.com', 'd.com']);
+    expect(fake.listedVerified).toEqual(['a.com']);
+    expect(
+      marketListings()
+        .map((l) => [l.name, l.status])
+        .sort(),
+    ).toEqual([
+      ['a.com', 'active'],
+      ['b.com', 'pending'],
+      ['c.com', 'active'],
+    ]);
   });
 
   it('isn’t supported where the market has neither (Sedo)', async () => {

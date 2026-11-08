@@ -54,6 +54,7 @@ function ownedCards(rows: Domain[], pricing: Record<string, RenewalPricing>) {
       archiveLabelOf: () => null,
       pricing,
       currency: 'USD',
+      numberFormat: 'us',
       fx: new ExchangeRates(),
       actions: {
         onExpiring: noop,

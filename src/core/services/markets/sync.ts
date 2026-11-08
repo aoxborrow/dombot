@@ -18,6 +18,7 @@ import { Namespace } from '../../storage/namespace';
 import { listEvents } from '../domain-events';
 import { provideSellingNames } from '../domain-history';
 import { getCachedPortfolio } from '../registrars';
+import { errorSummary } from '../error-summary';
 import {
   activeMarketAccounts,
   getMarketSyncState,
@@ -26,6 +27,7 @@ import {
   marketAdapter,
   onMarketAccountRemoved,
   setMarketSyncState,
+  setMarketVerification,
 } from './accounts';
 import {
   answerRemovalsOfSales,
@@ -76,6 +78,7 @@ const UNDER_WAY_READS = 20;
 const PENDING_KEEP_DAYS = 7;
 const UNCONFIRMED_NOTE = 'Not listed after a week';
 const VERIFYING_NOTE = 'Waiting on ownership checks';
+const SALES_HISTORY_NOTE = 'Sales history';
 
 // A name that leaves an account during a sale under way is the buyer
 // taking it: registrar sync writes that removal answered, not for review.
@@ -272,9 +275,13 @@ async function runMarketSync(accountId: string): Promise<void> {
   const notes = (previous?.notes ?? []).filter(
     (n) =>
       !n.startsWith('No search data on this account') &&
+      !n.startsWith('Dynadot API price level') &&
       !n.startsWith('Sedo’s API has no sales'),
   );
   let status = previous?.status ?? [];
+  // How far back the sales history has been read: kept even when the sync
+  // fails partway, so the next one carries on from there.
+  let salesRead = previous?.salesRead;
   try {
     const adapter = marketAdapter(accountId);
     const caps = adapter.capabilities;
@@ -284,6 +291,28 @@ async function runMarketSync(accountId: string): Promise<void> {
     const read = await adapter.allListings();
     const prefix = `${accountId}:`;
     const fresh = new Map(read.listings.map((l) => [prefix + l.name, l]));
+    // A market that won't take a listing until it has verified the name
+    // (Dynadot, for names held elsewhere): DomBot's pending listings go out
+    // now for the names it has verified since, and stay pending otherwise.
+    let verifying = 0;
+    if (adapter.listVerified) {
+      const waiting = Object.entries(listings.all())
+        .filter(
+          ([key, row]) =>
+            key.startsWith(prefix) &&
+            !fresh.has(key) &&
+            row.status === 'pending' &&
+            row.forSale,
+        )
+        .map(([, row]) => row);
+      if (waiting.length) {
+        for (const r of await adapter.listVerified(waiting)) {
+          if (!r.ok || !r.saved) continue;
+          fresh.set(prefix + r.name, r.saved);
+          if (r.saved.status === 'pending') verifying++;
+        }
+      }
+    }
     // A market that checks new listings before adding them (Sedo) leaves
     // them out of its list meanwhile: keep DomBot's pending row for a while,
     // then drop it and say so, since the market may have refused it.
@@ -300,7 +329,6 @@ async function runMarketSync(accountId: string): Promise<void> {
       }
     }
     // Names still in the market's ownership check stay pending.
-    let verifying = 0;
     if (caps.asyncInsert) {
       for (const [key, row] of fresh) {
         const held = holdPending(listings.get(key), row);
@@ -312,9 +340,31 @@ async function runMarketSync(accountId: string): Promise<void> {
     }
     void listings.setMany([...fresh]);
 
+    // A market whose API gives the account's verification value (Dynadot)
+    // keeps it current, so there's nothing to paste. A failed read keeps
+    // what's saved.
+    if (adapter.verificationId) {
+      const id = await adapter.verificationId().catch(() => null);
+      if (id && id !== account.verificationId) {
+        await setMarketVerification(accountId, id);
+      }
+    }
+
     // Sales: all of history the first time, then a window back from the
     // newest, since a recent sale's status keeps moving.
+    let historyNote: string | null = null;
     if (caps.sales && adapter.allSales) {
+      const allSales = adapter.allSales.bind(adapter);
+      // A list that doesn't say whether the market has a sale's auth code
+      // keeps what an earlier read of the sale found.
+      const store = (read: MarketSale[]) =>
+        void sales.setMany(
+          read.map((s) => {
+            const key = `${accountId}:${s.id}`;
+            const sent = s.authCodeSent ?? sales.get(key)?.authCodeSent ?? null;
+            return [key, { ...s, authCodeSent: sent }];
+          }),
+        );
       const known = accountSales(accountId);
       const newest = known
         .map((s) => s.soldOn ?? '')
@@ -325,16 +375,38 @@ async function runMarketSync(accountId: string): Promise<void> {
             .toISOString()
             .slice(0, 10)
         : undefined;
-      const read = await adapter.allSales(since);
-      // A list that doesn't say whether the market has a sale's auth code
-      // keeps what an earlier read of the sale found.
-      void sales.setMany(
-        read.map((s) => {
-          const key = `${accountId}:${s.id}`;
-          const sent = s.authCodeSent ?? sales.get(key)?.authCodeSent ?? null;
-          return [key, { ...s, authCodeSent: sent }];
-        }),
-      );
+      const start = adapter.salesHistoryFrom;
+      if (!start) {
+        store(await allSales(since));
+      } else {
+        // A market that filters by date gets its history a year at a time,
+        // newest first: a big seller's whole history in one ask can outlast
+        // the timeout. Each year is kept as it lands, and a year that fails
+        // pauses the history (a note, not a failed sync) for the next sync
+        // to carry on from. An account synced before this read its whole
+        // history in one go.
+        const today = new Date().toISOString().slice(0, 10);
+        salesRead ??= newest ? { from: start, to: newest } : undefined;
+        if (salesRead) {
+          store(await allSales(since ?? salesRead.to));
+          salesRead = { ...salesRead, to: today };
+        }
+        try {
+          while (!salesRead || salesRead.from > start) {
+            const year = salesRead
+              ? Number(salesRead.from.slice(0, 4)) - 1
+              : Number(today.slice(0, 4));
+            const from = `${year}-01-01` > start ? `${year}-01-01` : start;
+            store(await allSales(from, salesRead?.from));
+            salesRead = { from, to: salesRead?.to ?? today };
+          }
+        } catch (err) {
+          const why = errorMessage(err).replace(/\.$/, '');
+          historyNote = salesRead
+            ? `${SALES_HISTORY_NOTE} read back to ${salesRead.from.slice(0, 4)}, then paused: ${why}. The next sync carries on.`
+            : `${SALES_HISTORY_NOTE} paused: ${why}. The next sync carries on.`;
+        }
+      }
       // Only a market's single sale says whether it has the auth code, so
       // sales under way are read one by one until it does. One that fails
       // keeps what was stored.
@@ -414,9 +486,11 @@ async function runMarketSync(accountId: string): Promise<void> {
     const kept = notes.filter(
       (n) =>
         !n.startsWith('Per-domain traffic') &&
+        !n.startsWith(SALES_HISTORY_NOTE) &&
         !n.startsWith(VERIFYING_NOTE) &&
         !(unconfirmed && n.startsWith(UNCONFIRMED_NOTE)),
     );
+    if (historyNote) kept.push(historyNote);
     if (trafficNote) kept.push(trafficNote);
     if (unconfirmed) {
       kept.push(
@@ -436,8 +510,14 @@ async function runMarketSync(accountId: string): Promise<void> {
       incomplete: !read.complete,
       notes: kept,
       status,
+      ...(salesRead ? { salesRead } : {}),
     });
   } catch (error) {
+    // The card shows the message; the log keeps the code, status and
+    // request id support asks for.
+    console.error(
+      `[markets] ${account.market} "${account.label}" sync failed: ${errorSummary(error)}`,
+    );
     setMarketSyncState(accountId, {
       at: Date.now(),
       lastError: `${account.label}: ${errorMessage(error)}`,
@@ -446,6 +526,7 @@ async function runMarketSync(accountId: string): Promise<void> {
       incomplete: previous?.incomplete ?? false,
       notes,
       status,
+      ...(salesRead ? { salesRead } : {}),
     });
   }
   broadcastPortfolioChanged();

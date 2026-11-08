@@ -47,6 +47,10 @@ const KNOWN_GAPS: Partial<
     op.kind === 'lock' || op.kind === 'privacy'
       ? 'Porkbun’s API can’t change this after registration.'
       : null,
+  unstoppable: (op) =>
+    op.kind === 'renew'
+      ? 'Unstoppable renews through its checkout — renew in your Unstoppable account.'
+      : null,
 };
 
 // Registrars whose API doesn't report WHOIS privacy, so the library's `false`

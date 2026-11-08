@@ -8,6 +8,12 @@ import { domainKey } from '../../shared/account-key';
 
 import type { ExchangeRates } from '../../shared/exchange-rates';
 import type { Domain, RenewalPricing } from '../../shared/ipc';
+import {
+  formatMoney,
+  formatMoneyNumber,
+  numberFormatOf,
+  type NumberFormatId,
+} from '../../shared/money';
 
 /** Stable per-domain key, matching the store's `pricing` map keys. */
 export function priceKey(d: Domain): string {
@@ -67,42 +73,27 @@ function addLeftOut(totals: CurrencyTotal[], currency: string, amount: number) {
   );
 }
 
-/** A price with its currency symbol and up to two decimals, e.g. "$12.99" or "€9". */
-export function priceMoney(n: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency,
-      currencyDisplay: 'narrowSymbol',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(n);
-  } catch {
-    return `${n.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${currency}`;
+/**
+ * Compact whole amount: "$820", "$4.2k", "$23.1k", "€120k", in your number
+ * format ("4,2k"), with the code where formatMoney shows one ("$4.2k CAD").
+ */
+export function compactMoney(
+  n: number,
+  currency: string,
+  preferred: string,
+  formatId: NumberFormatId,
+): string {
+  if (n < 1000) {
+    return formatMoneyNumber(n, currency, preferred, formatId, true);
   }
-}
-
-/** A whole amount with its currency symbol, e.g. "$1,240" or "€45". */
-export function wholeMoney(n: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency,
-      currencyDisplay: 'narrowSymbol',
-      maximumFractionDigits: 0,
-      minimumFractionDigits: 0,
-    }).format(Math.round(n));
-  } catch {
-    return `${Math.round(n).toLocaleString('en-US')} ${currency}`;
-  }
-}
-
-/** Compact whole amount: "$820", "$4.2k", "$23.1k", "€120k". */
-export function compactMoney(n: number, currency: string): string {
-  if (n < 1000) return wholeMoney(n, currency);
   const k = n / 1000;
-  const symbol = wholeMoney(0, currency).replace(/[\d\s.,]/g, '');
-  return `${symbol}${k < 100 ? k.toFixed(1).replace(/\.0$/, '') : Math.round(k)}k`;
+  const digits =
+    k < 100 ? k.toFixed(1).replace(/\.0$/, '') : String(Math.round(k));
+  const { decimal } = numberFormatOf(formatId);
+  return formatMoney('0', currency, preferred, formatId, true).replace(
+    '0',
+    `${digits.replace('.', decimal)}k`,
+  );
 }
 
 /** Everything after the first dot, lowercased. "example.co.uk" → "co.uk". */

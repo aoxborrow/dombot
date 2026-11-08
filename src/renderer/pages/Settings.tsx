@@ -58,7 +58,7 @@ export default function Settings() {
   return (
     // Bottom padding on the page itself, so every tab ends the same distance
     // above the status bar however long its content runs.
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 pb-8 sm:gap-7 sm:pb-12">
+    <div className="mx-auto flex w-full max-w-[58rem] flex-col gap-4 pb-8 sm:gap-7 sm:pb-12">
       <h1 className="text-2xl font-bold sm:text-[32px]">Settings</h1>
 
       <Tabs
