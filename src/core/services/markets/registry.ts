@@ -3,6 +3,7 @@ import { AFTERNIC_NAMESERVERS } from '../../markets/afternic';
 import { ATOM_NAMESERVERS } from '../../markets/atom';
 import { DYNADOT_NAMESERVERS } from '../../markets/dynadot';
 import { SEDO_NAMESERVERS } from '../../markets/sedo';
+import { getListPrices } from '../list-prices';
 import type {
   AfternicActions,
   AtomActions,
@@ -61,6 +62,15 @@ interface MarketEntry {
   ): AnyMarketAdapter;
 }
 
+/**
+ * DomBot's minimum offer for a name, from its asking price, when that's in
+ * USD: Dynadot needs one with every change to a listing that takes offers.
+ */
+function askingMinOffer(name: string): string | null {
+  const price = getListPrices()[name];
+  return price?.currency === 'USD' ? (price.minOffer ?? null) : null;
+}
+
 const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
   afternic: {
     info: {
@@ -92,8 +102,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
     create: (accountId, credentials) =>
       createAtomAdapter(accountId, credentials),
   },
-  // Reads checked live; listing from DomBot not built yet
-  // (docs/dynadot-marketplace-api.md).
+  // Checked live, reads and writes (docs/dynadot-marketplace-api.md).
   dynadot: {
     info: {
       id: 'dynadot',
@@ -111,6 +120,7 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
       createDynadotAdapter(accountId, credentials, {
         fetch: context.fetch,
         limiterKey: context.registrarAccountId ?? accountId,
+        minOfferFor: askingMinOffer,
       }),
   },
   // Checked live, reads and writes (docs/sedo-api.md).

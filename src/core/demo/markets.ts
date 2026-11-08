@@ -55,6 +55,8 @@ export class DemoMarketWorld {
   readonly sales = new Map<string, MarketSale[]>();
   readonly settings = new Map<string, AfternicAccountSettings>();
   readonly market = new Map<string, MarketId>();
+  /** Names the demo's Dynadot registrar account holds. */
+  heldAtDynadot: (name: string) => boolean = () => false;
   constructor(readonly now: number = Date.now()) {}
 
   account(id: string): Map<string, MarketListing> {
@@ -176,16 +178,6 @@ export class DemoMarketAdapter {
         currency,
       );
       if (why) return refused(name, why);
-      // Dynadot lists a name held elsewhere only once it has verified it.
-      if (
-        current?.extra.market === 'dynadot' &&
-        current.extra.verified === false
-      ) {
-        return refused(
-          name,
-          `Dynadot hasn’t verified that you own ${name} yet: add your ownership verification TXT record, then list it again.`,
-        );
-      }
       const now = new Date().toISOString();
       const next: MarketListing = {
         ...(current ?? newListing(this.market, this.accountId, name, now)),
@@ -198,6 +190,28 @@ export class DemoMarketAdapter {
       if (change.floor !== undefined) next.floor = change.floor;
       if (change.forSale !== undefined && next.status !== 'pending')
         next.forSale = change.forSale;
+      // Dynadot lists a name held elsewhere only once it has verified it:
+      // a new one is added to its list and stays pending meanwhile. A
+      // listed name's minimum offer never shows.
+      if (
+        this.market === 'dynadot' &&
+        !current &&
+        !this.world.heldAtDynadot(name)
+      ) {
+        Object.assign(next, {
+          status: 'pending',
+          statusRaw: 'Buy Now · Unverified',
+          extra: {
+            ...next.extra,
+            held: 'elsewhere',
+            listingId: null,
+            offers: false,
+            verified: false,
+          },
+        });
+      }
+      if (this.market === 'dynadot' && next.status !== 'pending')
+        next.minOffer = null;
       const adjusted: MarketWriteResult['adjusted'] = [];
       if (change.leaseToOwn) {
         const asked = change.leaseToOwn.maxPayments;
@@ -327,6 +341,7 @@ export class DemoMarketAdapter {
           status: 'active',
           statusRaw: 'Buy Now · Verified',
           forSale: true,
+          minOffer: null,
           extra: { ...l.extra, verified: true },
         });
       }
@@ -578,6 +593,7 @@ export function seedDemoMarkets(
 ): void {
   const r = rng(seed);
   const now = world.now;
+  world.heldAtDynadot = heldAtDynadot;
   for (const a of DEMO_MARKET_ACCOUNTS) world.market.set(a.id, a.market);
   const listed = (
     accountId: string,
@@ -687,8 +703,9 @@ export function seedDemoMarkets(
               ? 'BIN_MAKE_OFFER'
               : 'BIN'
             : `Buy Now · ${pending ? 'Unverified' : 'Verified'}`,
-          forSale: !pending,
-          minOffer: null,
+          // A pending one is DomBot's, held until Dynadot verifies the name.
+          forSale: true,
+          minOffer: pending ? l.minOffer : null,
           listedAt: home ? null : l.listedAt,
           extra: {
             ...l.extra,

@@ -11,6 +11,7 @@ import {
 } from '../services/markets/sync';
 import {
   setSaleAuthCode,
+  verifyMarketDns,
   writeMarketListings,
 } from '../services/markets/writes';
 import { installDemo, uninstallDemo, type DemoInstallation } from './index';
@@ -144,5 +145,23 @@ describe('demo markets', () => {
       { name: 'cheap-name.com', price: '50' },
     ]);
     expect(atom.ok).toBe(false);
+  });
+
+  it('holds a Dynadot listing pending until Dynadot verifies the name', async () => {
+    const [r] = await writeMarketListings('demo-dynadot', [
+      { name: 'held-elsewhere.com', price: '2500' },
+    ]);
+    expect(r).toMatchObject({
+      ok: true,
+      pending: true,
+      saved: { status: 'pending', extra: { held: 'elsewhere' } },
+    });
+    // A new price while it waits is still pending, not an error.
+    const [again] = await writeMarketListings('demo-dynadot', [
+      { name: 'held-elsewhere.com', price: '2000' },
+    ]);
+    expect(again).toMatchObject({ ok: true, pending: true });
+    const checked = await verifyMarketDns('demo-dynadot', 'held-elsewhere.com');
+    expect(checked.saved).toMatchObject({ status: 'active', price: '2000' });
   });
 });

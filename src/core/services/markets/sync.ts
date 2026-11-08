@@ -291,6 +291,28 @@ async function runMarketSync(accountId: string): Promise<void> {
     const read = await adapter.allListings();
     const prefix = `${accountId}:`;
     const fresh = new Map(read.listings.map((l) => [prefix + l.name, l]));
+    // A market that won't take a listing until it has verified the name
+    // (Dynadot, for names held elsewhere): DomBot's pending listings go out
+    // now for the names it has verified since, and stay pending otherwise.
+    let verifying = 0;
+    if (adapter.listVerified) {
+      const waiting = Object.entries(listings.all())
+        .filter(
+          ([key, row]) =>
+            key.startsWith(prefix) &&
+            !fresh.has(key) &&
+            row.status === 'pending' &&
+            row.forSale,
+        )
+        .map(([, row]) => row);
+      if (waiting.length) {
+        for (const r of await adapter.listVerified(waiting)) {
+          if (!r.ok || !r.saved) continue;
+          fresh.set(prefix + r.name, r.saved);
+          if (r.saved.status === 'pending') verifying++;
+        }
+      }
+    }
     // A market that checks new listings before adding them (Sedo) leaves
     // them out of its list meanwhile: keep DomBot's pending row for a while,
     // then drop it and say so, since the market may have refused it.
@@ -307,7 +329,6 @@ async function runMarketSync(accountId: string): Promise<void> {
       }
     }
     // Names still in the market's ownership check stay pending.
-    let verifying = 0;
     if (caps.asyncInsert) {
       for (const [key, row] of fresh) {
         const held = holdPending(listings.get(key), row);

@@ -52,6 +52,8 @@ function fakeClient(opts: {
   refuse?: Error[];
   /** What Dynadot answers locking a name again with. */
   relockError?: Error;
+  /** DomBot's minimum offers (its asking prices). */
+  minOffers?: Record<string, string>;
 }) {
   const calls: string[] = [];
   const sent: { name: string; input: DynadotListingInput }[] = [];
@@ -123,7 +125,11 @@ function fakeClient(opts: {
     },
   };
   return {
-    adapter: new DynadotAdapter('acct', client as unknown as DynadotClient),
+    adapter: new DynadotAdapter(
+      'acct',
+      client as unknown as DynadotClient,
+      (name) => opts.minOffers?.[name] ?? null,
+    ),
     calls,
     sent,
   };
@@ -219,10 +225,31 @@ describe('what a change sends', () => {
     );
   });
 
-  it('won’t touch a listing that takes offers without its minimum', () => {
-    expect(() => listingFor({ name: 'x.com', price: '3000' }, offers)).toThrow(
-      /needs its minimum offer/,
+  it('sends DomBot’s minimum offer to a listing that takes offers', () => {
+    expect(listingFor({ name: 'x.com', price: '3000' }, offers, '600')).toEqual(
+      { listingType: 'bin_make_offer', price: '3000', minOffer: '600' },
     );
+    // The change's own minimum comes first.
+    expect(
+      listingFor(
+        { name: 'x.com', price: '3000', minOffer: '700' },
+        offers,
+        '600',
+      ).minOffer,
+    ).toBe('700');
+    // A Buy Now listing stays Buy Now.
+    expect(
+      listingFor({ name: 'x.com', price: '3000' }, bin, '600').listingType,
+    ).toBe('bin');
+  });
+
+  it('won’t touch a listing that takes offers without a minimum in DomBot', () => {
+    expect(() => listingFor({ name: 'x.com', price: '3000' }, offers)).toThrow(
+      /Set one in DomBot’s asking price/,
+    );
+    expect(() =>
+      listingFor({ name: 'x.com', price: '3000' }, offers, '0.50'),
+    ).toThrow(/\$1\.00 or more/);
   });
 
   it('needs a price or a minimum offer', () => {
@@ -314,10 +341,10 @@ describe('the adapter', () => {
       { name: 'lumenpost.com', price: '3000', minOffer: '750' },
     ]);
     expect(r).toMatchObject({ ok: true, error: null, adjusted: [] });
-    // What was sent, until a sync reads it back without the minimum.
+    // Dynadot never shows the minimum back, so neither does DomBot.
     expect(r.saved).toMatchObject({
       price: '3000',
-      minOffer: '750',
+      minOffer: null,
       extra: { offers: true },
     });
     expect(sent).toEqual([
@@ -334,7 +361,29 @@ describe('the adapter', () => {
     ]);
   });
 
-  it('won’t reprice a listing that takes offers without its minimum', async () => {
+  it('reprices a listing that takes offers with DomBot’s minimum', async () => {
+    const { adapter, sent } = fakeClient({
+      held: [{ name: 'lumenpost.com', forSale: true }],
+      listings: {
+        'lumenpost.com': listing({
+          type: 'bin_make_offer',
+          typeRaw: 'BIN_MAKE_OFFER',
+        }),
+      },
+      minOffers: { 'lumenpost.com': '900' },
+    });
+    const [r] = await adapter.writeListings([
+      { name: 'lumenpost.com', price: '3000' },
+    ]);
+    expect(r.ok).toBe(true);
+    expect(sent[0].input).toMatchObject({
+      listingType: 'bin_make_offer',
+      price: '3000',
+      minOffer: '900',
+    });
+  });
+
+  it('won’t reprice a listing that takes offers without a minimum in DomBot', async () => {
     const { adapter, sent } = fakeClient({
       held: [{ name: 'lumenpost.com', forSale: true }],
       listings: {
@@ -425,26 +474,80 @@ describe('the adapter', () => {
     expect(sent).toEqual([]);
   });
 
-  it('adds a name held elsewhere and says it needs verifying first', async () => {
+  it('adds a name held elsewhere, pending until Dynadot verifies it', async () => {
     const { adapter, calls, sent } = fakeClient({ verified: {} });
     const [r] = await adapter.writeListings([
-      { name: 'domanio.com', price: '999999' },
+      { name: 'domanio.com', price: '999999', minOffer: '5000' },
     ]);
-    expect(r.ok).toBe(false);
-    expect(r.error?.code).toBe('NOT_VERIFIED');
-    expect(r.error?.message).toMatch(/Added domanio\.com/);
+    expect(r).toMatchObject({ ok: true, pending: true, error: null });
+    // What DomBot asked for, held until Dynadot can take it.
+    expect(r.saved).toMatchObject({
+      status: 'pending',
+      forSale: true,
+      price: '999999',
+      minOffer: '5000',
+      extra: { held: 'elsewhere', verified: false },
+    });
     expect(calls).toContain('addExternal:domanio.com');
     expect(sent).toEqual([]);
   });
 
-  it('won’t list a name held elsewhere until Dynadot has verified it', async () => {
-    const { adapter, sent } = fakeClient({
+  it('holds a listing for a name Dynadot hasn’t verified yet', async () => {
+    const { adapter, calls, sent } = fakeClient({
       verified: { 'domanio.com': false },
     });
     const [r] = await adapter.writeListings([
       { name: 'domanio.com', price: '999999' },
     ]);
-    expect(r.error?.code).toBe('NOT_VERIFIED');
+    expect(r).toMatchObject({ ok: true, pending: true });
+    expect(r.saved?.status).toBe('pending');
+    expect(calls).not.toContain('addExternal:domanio.com');
+    expect(sent).toEqual([]);
+  });
+
+  it('lists a pending name once Dynadot has verified it', async () => {
+    const verified: Record<string, boolean> = {
+      'domanio.com': false,
+      'domainio.com': false,
+    };
+    const { adapter, sent } = fakeClient({ verified });
+    const [held] = await adapter.writeListings([
+      { name: 'domanio.com', price: '999999', minOffer: '5000' },
+    ]);
+    const [other] = await adapter.writeListings([
+      { name: 'domainio.com', price: '888888' },
+    ]);
+    verified['domanio.com'] = true;
+    const results = await adapter.listVerified([held.saved!, other.saved!]);
+    expect(sent).toEqual([
+      {
+        name: 'domanio.com',
+        input: {
+          forSale: true,
+          listingType: 'bin_make_offer',
+          price: '999999',
+          minOffer: '5000',
+          currency: 'USD',
+        },
+      },
+    ]);
+    expect(results[0]).toMatchObject({
+      ok: true,
+      pending: false,
+      saved: { status: 'active', price: '999999', minOffer: null },
+    });
+    // Still waiting: the row as it was.
+    expect(results[1]).toMatchObject({ ok: true, pending: true });
+    expect(results[1].saved).toBe(other.saved);
+  });
+
+  it('fails a pending name that left Dynadot’s list', async () => {
+    const { adapter, sent } = fakeClient({ verified: {} });
+    const [held] = await adapter.writeListings([
+      { name: 'domanio.com', price: '999999' },
+    ]);
+    const [r] = await adapter.listVerified([held.saved!]);
+    expect(r.error?.code).toBe('NOT_FOUND');
     expect(sent).toEqual([]);
   });
 

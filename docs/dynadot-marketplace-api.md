@@ -26,10 +26,11 @@ below is from the API reference and Dynadot's help pages as read on
 - **Adapter** `src/core/services/markets/dynadot.ts`, registered as
   `dynadot` ("Dynadot"): listings of both kinds of name (below), the Open
   Marketplace Key read into the account's Ownership Verification ID on
-  each sync. Writes list, reprice and delist either kind ("Writes"), and
-  Recheck asks Dynadot to verify a name held elsewhere. Capabilities are
-  what's built: USD only, a minimum offer sent but never read back, no
-  sales yet.
+  each sync. Writes list, reprice and delist either kind ("Writes"). A
+  name held elsewhere that Dynadot hasn't verified is pending, not an
+  error; DomBot lists it once Dynadot has verified it, on the next sync or
+  a Recheck. Capabilities are what's built: USD only, a minimum offer sent
+  (DomBot's own) but never read back, pending inserts, no sales yet.
 - **Registrar-backed accounts:** Settings → Markets adds a Dynadot account by
   picking a Dynadot registrar account (each one once); it calls with that
   account's key and proxy route, keeps no credentials of its own, and
@@ -45,13 +46,12 @@ below is from the API reference and Dynadot's help pages as read on
   names from both sides.
 - **Live tests:** `client.live.test.ts` (reads), and
   `client.writes.live.test.ts` (round trips behind `DYNADOT_LIVE_WRITES=1`):
-  passed on domanio.com held elsewhere; on testbot.io, in the account, it
-  passed on testbot.io in the account (locked; the account lock off), and
-  stops at an account-lock refusal otherwise ("Testing").
+  passed on domanio.com held elsewhere, and on testbot.io in the account
+  (locked; the account lock off); with the account lock on it stops at the
+  refusal ("Testing").
 - **Next:** sales, and whether Dynadot's allowed-IP setting gets past the
   account lock ("Locks"). Not
-  yet: keeping the last minimum offer DomBot sent across syncs, the Listing
-  Currency setting, removing a name from Dynadot's list, the remove-both
+  yet: the Listing Currency setting, removing a name from Dynadot's list, the remove-both
   prompt and the registrar card pointing back, and sharing the registrar's
   bulk lane.
 
@@ -251,7 +251,12 @@ No seller "my listings" call exists for these. What there is:
   and the A records), verify answered `success_list: ["domanio.com"]` at
   once, and the list read "Verified".
 - Make Offer, alone or with Buy Now, needs a minimum offer: "The
-  minimum_offer_price must be $1.00 or higher." (400) without one.
+  minimum_offer_price must be $1.00 or higher." (400) without one. For a
+  name in the account too: a test name taking offers, with a minimum set on
+  Dynadot's site, rewritten at its price without one answered 400 "The
+  required parameter minimum_offer_price is missing." and kept its
+  minimum, though Dynadot's own form allows a blank one. No API read shows
+  the minimum (2026-11-04).
 - The listing read covers names held elsewhere too (`in_bound_links: -1`),
   but its price is the buyer's: listed at $999,997, it read 1000008.62,
   Dynadot's .com transfer fee added. The other-registrar list has the
@@ -471,13 +476,14 @@ twelve names a minute at the client's pace.
 - **`listing_type`:** from the change: a price alone is Buy Now, a price
   and a minimum offer Buy Now + Make Offer, a minimum offer alone Make
   Offer. A change that leaves the price keeps the one listed.
-- **Minimum offer:** Dynadot needs one ($1 or more) whenever offers are on,
-  and never shows it back. So a change to a listing that takes offers has
-  to give the minimum again (or clear it, which turns offers off);
-  without it DomBot refuses rather than guess. The saved listing carries
-  the minimum sent until the next sync reads it back without one. Planned:
-  keep the last minimum DomBot sent across syncs, shown as last set from
-  DomBot.
+- **Minimum offer:** DomBot's only (decided 2026-11-04). Dynadot needs
+  one ($1 or more) with every change while offers are on, and never shows
+  it back. A change that gives one sends it; a change to a listing that
+  takes offers without one sends DomBot's minimum offer for the name (its
+  asking price, when that's in USD); with none in DomBot it's refused,
+  saying to set one or clear it (which turns offers off). A Buy Now listing
+  stays Buy Now. DomBot doesn't keep what it sent: a listed name's minimum
+  is blank in DomBot, as Dynadot shows it.
 - **Read back:** a name in the account is read again after the write; a
   name held elsewhere is saved as sent, since the listing read shows the
   buyer's price (with the transfer fee) and the seller's is only on the
@@ -516,9 +522,8 @@ twelve names a minute at the client's pace.
 - **What a write keeps:** on testbot.io, a reprice kept the category
   ("Business") and sub-category ("None") set on Dynadot, and replaced the
   description with the space DomBot sends (seen on the public listing
-  page, for the test only). Not checked yet: installments, and whether a
-  minimum offer survives a change that doesn't send one (DomBot always
-  sends it when offers are on).
+  page, for the test only). A change without the minimum offer is refused
+  and leaves it as it was (Observed). Not checked yet: installments.
 - **`forSale: false`** is refused with "Dynadot has no hidden listings;
   delist instead". `not_for_sale` is the delist.
 - **Floor, discount, lease-to-own, tiers:** refused with a message, never
@@ -531,12 +536,24 @@ delist (a name with no listing counts as delisted).
 
 Held elsewhere:
 
-- **List:** a name not on the other-registrar list is added, and the result
-  says to add the ownership verification TXT record and list it again:
-  Dynadot refuses an unverified name (409, observed). A verified one is
-  listed with `listing_other_registrar_domain`, amounts in cents (open
-  question 7 for currencies without them). Planned: list a name by itself
-  once a sync sees it verified, so one List does it.
+- **List:** a verified name is listed with
+  `listing_other_registrar_domain`, amounts in cents (open question 7 for
+  currencies without them). Dynadot refuses an unverified one (409,
+  observed), and keeps no listing request for it, so DomBot holds it
+  (decided 2026-11-04): a name not on the other-registrar list is added,
+  and the result is pending, not an error, as on markets that check
+  ownership themselves (`asyncInsert`). The pending row keeps the price and
+  minimum offer asked for.
+- **Listed once verified** (`listVerified`): each sync asks Dynadot about
+  the account's pending names (one verification read a name) and lists
+  those it has verified since, at the pending row's price. One still
+  unverified stays pending, under the "Waiting on ownership checks" note,
+  however long it takes; one taken off Dynadot's list is dropped after a
+  week, like any listing a market never took. Recheck ownership… lists a
+  name as soon as Dynadot verifies it. Dynadot also verifies on its own,
+  which DomBot only sees at the next sync (the auto-sync interval, a day by
+  default). This makes `market_sync` write, only for these names; its MCP
+  description says so.
 - **Delist:** `listing_other_registrar_domain` with `not_for_sale`. The name
   stays added and verified, so listing it again is one call. Planned:
   **Also remove from Dynadot** (off), running
@@ -595,7 +612,8 @@ place.
 - **List at your prices** turns **Add ownership verification TXT records**
   on to start for a Dynadot listing of names held elsewhere: without it
   the listing can't go live. The user can still turn it off.
-- **Recheck ownership…** works (`verifyDns: true`), many names a call.
+- **Recheck ownership…** works (`verifyDns: true`), many names a call, and
+  lists a pending name once Dynadot has verified it ("Writes").
 - **Keeping it in place.** Removing the TXT record, or moving the name to
   other nameservers, gets the Dynadot listing removed. DomBot's nameserver
   change warning names the Dynadot listings that would lapse, and the DNS
@@ -663,7 +681,7 @@ registrar, where the registrar supports it.
 
 Planned, once currencies and sales are in. What's built declares only
 what works: USD, a minimum offer (sent, not read back), `sales` off,
-`verifyDns` on.
+`verifyDns` and `asyncInsert` on.
 
 ```ts
 const DYNADOT_CAPABILITIES: MarketCapabilities = {
@@ -685,7 +703,7 @@ const DYNADOT_CAPABILITIES: MarketCapabilities = {
   accountSettings: false,
   relist: false,
   verifyDns: true, // names held elsewhere
-  asyncInsert: false,
+  asyncInsert: true, // names held elsewhere: pending until verified
   writeBatch: 1,
   jobs: false,
   spends: false,
@@ -707,9 +725,10 @@ Built: a Dynadot account on the demo's Dynadot registrar account
 (`src/core/demo/markets.ts`), with a made-up Open Marketplace Key as its
 verification ID, listing about three in ten priced names: those the demo's
 Dynadot account holds, and names from its other registrars, a few still
-waiting on verification. Writes behave as the real adapter does: an
-unverified name held elsewhere is refused until Recheck verifies it, and a
-minimum offer is refused. Planned: a pending-sale listing, and a sale of a
+waiting on verification. Writes behave as the real adapter does: a new name
+the demo's Dynadot account doesn't hold, or one still unverified, is
+pending until Recheck verifies and lists it, and a listed name's minimum
+offer shows blank. Planned: a pending-sale listing, and a sale of a
 name held elsewhere waiting on its auth code.
 
 ## Testing
@@ -753,10 +772,9 @@ nobody would pay, read back, then delisted.
 3. **Writes and verification:** built: list, reprice and delist for both
    kinds with a minimum offer, adding names held elsewhere, Recheck
    (`verifyDns`), through the List and Delist dialog, the bulk runner and
-   the MCP tools; checked live on a name held elsewhere. Not yet: the round
-   trip on a name in the account, keeping the minimum sent across syncs,
-   removing a name from Dynadot's list, listing a name by itself once it's
-   verified, a verify after Ownership verification TXT…, and the
+   the MCP tools; checked live on both kinds; unverified names pending, and
+   listed once verified, by sync or Recheck. Not yet: removing a name from
+   Dynadot's list, a verify after Ownership verification TXT…, and the
    nameserver warning.
 4. **Sales:** sale records for names held elsewhere and their steps on the
    Sales tab; the Record sale… prefill for names in the account.

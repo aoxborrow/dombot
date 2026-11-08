@@ -62,7 +62,7 @@ describe.skipIf(!(apiKey && apiSecret && writes))(
           price: '999998',
           extra: { offers: true },
         });
-        // And without it, DomBot refuses rather than guess.
+        // And without it, with none in DomBot either, DomBot refuses.
         const [refused] = await adapter.writeListings([
           { name, price: '999997' },
         ]);
