@@ -68,4 +68,12 @@ describe('changeSelection', () => {
       ...changeSelection(added, 'owned', keys, ['domain-1'], false).selected,
     ]).toEqual(['domain-75', 'domain-5']);
   });
+
+  it('a late removal with older keys keeps rows selected since', () => {
+    // domain-200 joined the result (a sync) and was selected after the
+    // folder move began; the move's completion still holds the old keys.
+    const current = state('owned', ['domain-1', 'domain-200']);
+    const next = changeSelection(current, 'owned', keys, ['domain-1'], false);
+    expect([...next.selected]).toEqual(['domain-200']);
+  });
 });

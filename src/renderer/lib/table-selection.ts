@@ -20,7 +20,9 @@ export function reconcileSelection(
   };
 }
 
-/** A completion from an earlier result must not change the current selection. */
+/** A completion from an earlier result must not change the current selection.
+ *  `keys` may be from an earlier render (a late removal), so only adds check
+ *  it; rows that left the result are pruned at render, against current keys. */
 export function changeSelection(
   previous: TableSelectionState,
   scope: string,
@@ -29,7 +31,7 @@ export function changeSelection(
   on: boolean,
 ): TableSelectionState {
   if (previous.scope !== scope) return previous;
-  const selected = new Set(reconcileSelection(previous, scope, keys).selected);
+  const selected = new Set(previous.selected);
   for (const key of targets) {
     if (on && keys.has(key)) selected.add(key);
     else selected.delete(key);

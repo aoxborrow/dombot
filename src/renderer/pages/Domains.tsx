@@ -938,6 +938,9 @@ function matchesExpiration(d: Domain, range: DateRange): boolean {
   return matchesDateRange(utcDay(d.expirationDate), range);
 }
 
+/** A name an account still holds: what registrar actions run on. */
+const isHeld = (d: Domain) => !d.departed && d.source !== 'imported';
+
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function Domains() {
@@ -2157,9 +2160,9 @@ export default function Domains() {
     }
     return counts;
   }, [selectedDomains, folderAssignments, folders]);
-  const selectedHeld = selectedDomains.filter(
-    (d) => !d.departed && d.source !== 'imported',
-  );
+  const selectedHeld = selectedDomains.filter(isHeld);
+  // Bulk Retry failed finds the job's names here, selected or not.
+  const allHeld = useMemo(() => merged.filter(isHeld), [merged]);
   const bulkRefresh = () => {
     const n = selectedDomains.length;
     void refreshNames(selectedDomains, `${n} domain${n === 1 ? '' : 's'}`);
@@ -2745,6 +2748,7 @@ export default function Domains() {
         <BulkActionDialog
           initialOp={bulkDialog.op}
           domains={selectedHeld}
+          retryPool={allHeld}
           jobId={bulkDialog.jobId}
           onClose={() => setBulkDialog(null)}
         />
