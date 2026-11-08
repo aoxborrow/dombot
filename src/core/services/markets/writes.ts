@@ -530,6 +530,36 @@ export async function setMarketDiscount(
   return result;
 }
 
+/**
+ * After an Ownership verification TXT job: each market that won't list a
+ * name until it has verified it (Dynadot) checks the job's names it holds
+ * pending now, and lists those it verifies. A name it can't verify yet
+ * stays pending for the next sync.
+ */
+export async function listVerifiedListings(
+  names: readonly string[],
+): Promise<void> {
+  const wanted = new Set(names.map((n) => toAscii(n)));
+  for (const account of activeMarketAccounts()) {
+    const adapter = marketAdapter(account.id);
+    if (!adapter.listVerified) continue;
+    const rows = marketListings().filter(
+      (l) =>
+        l.accountId === account.id &&
+        l.status === 'pending' &&
+        l.forSale &&
+        wanted.has(l.name),
+    );
+    if (!rows.length) continue;
+    const results = await adapter.listVerified(rows);
+    putMarketListings(
+      account.id,
+      results.flatMap((r) => (r.ok && r.saved ? [r.saved] : [])),
+    );
+  }
+  broadcastPortfolioChanged();
+}
+
 /** Ask the market to check a name's DNS now (Atom's verify). */
 export async function verifyMarketDns(
   accountId: string,
@@ -539,8 +569,21 @@ export async function verifyMarketDns(
   if (!adapter.capabilities.verifyDns || !adapter.verifyDns) {
     throw new Error(`DNS verification is not supported for ${adapter.market}.`);
   }
-  const result = await adapter.verifyDns(toAscii(name));
+  const key = toAscii(name);
+  let result = await adapter.verifyDns(key);
   if (result.ok && result.saved) putMarketListings(accountId, [result.saved]);
+  // A market that won't take a listing until it has verified the name
+  // (Dynadot) gets DomBot's pending listing now, if it has.
+  const cached = cachedListing(accountId, key);
+  if (result.ok && adapter.listVerified && cached?.status === 'pending') {
+    const [listed] = await adapter.listVerified([cached]);
+    if (listed) {
+      if (listed.ok && listed.saved) {
+        putMarketListings(accountId, [listed.saved]);
+      }
+      result = listed;
+    }
+  }
   broadcastPortfolioChanged();
   return result;
 }

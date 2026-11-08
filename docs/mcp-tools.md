@@ -254,6 +254,8 @@ saying so.
   the account's NS3), and the market's `capabilities`. No secrets.
 - **`market_sync`** — `accountId?`. Re-reads listings, sales and stats from
   one account or every enabled one. Completed sales become `sold` events.
+  Not marked read-only: a Dynadot listing DomBot holds until Dynadot
+  verifies the name goes out during the sync once it has.
 - **`market_listings`** — your listings across accounts: filter by `market`,
   `accountId`, `status[]`, `forSale`, `nameContains`, `tld`, `priceMin`,
   `priceMax`; `sort` by `name`, `price`, `status`, `listedAt` or

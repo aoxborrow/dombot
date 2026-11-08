@@ -11,18 +11,25 @@ import {
   MARKET_LAST_SYNC_NAMESPACE,
 } from '../../storage/names';
 import { Namespace } from '../../storage/namespace';
+import { accountById } from '../accounts';
+import { getStoredCredentials } from '../credentials';
+import { accountProxyRoute } from '../proxies';
+import { sendThroughProxy } from '../proxy-transport';
 import { serialByKey } from '../serial-by-key';
 import {
   buildAdapter,
   isMarketId,
   marketInfo,
+  type AdapterContext,
   type AnyMarketAdapter,
   type Credentials,
 } from './registry';
 
 // Market accounts (Settings → Markets, docs/markets.md): one record per
 // connected account, its credentials in their own namespace, which hosts
-// seal like registrar credentials, and what its last sync found.
+// seal like registrar credentials, and what its last sync found. A market
+// that runs on a registrar's API (Dynadot) keeps no credentials: its account
+// names a registrar account and calls with that account's key and proxy.
 
 const accounts = new Namespace<MarketAccount>(MARKET_ACCOUNTS_NAMESPACE);
 const credentials = new Namespace<Credentials>(MARKET_CREDENTIALS_NAMESPACE);
@@ -35,16 +42,72 @@ export function onMarketAccountRemoved(fn: (accountId: string) => void) {
   onRemove.push(fn);
 }
 
+/** A market's name for sorting; one DomBot no longer supports by its id. */
+const marketName = (market: MarketId) =>
+  isMarketId(market) ? marketInfo(market).name : market;
+
+/**
+ * Every account, in the order DomBot shows markets everywhere: by market
+ * name, then account name, then when it was added.
+ */
 export function listMarketAccounts(): MarketAccount[] {
   return Object.values(accounts.all()).sort(
-    (a, b) => a.createdAt - b.createdAt,
+    (a, b) =>
+      marketName(a.market).localeCompare(marketName(b.market)) ||
+      a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }) ||
+      a.createdAt - b.createdAt,
   );
+}
+
+/** The credentials an account calls with: its own, or its registrar account's. */
+function credentialsOf(account: MarketAccount): Credentials {
+  return account.registrarAccountId
+    ? getStoredCredentials(account.registrarAccountId)
+    : (credentials.get(account.id) ?? {});
+}
+
+function hasCredentials(account: MarketAccount): boolean {
+  return Object.keys(credentialsOf(account)).length > 0;
+}
+
+/**
+ * How a registrar-backed account's calls go out: through its registrar
+ * account's proxy when that has one, never direct from an address the
+ * registrar hasn't whitelisted.
+ */
+function contextOf(account: MarketAccount): AdapterContext {
+  const id = account.registrarAccountId;
+  if (!id) return {};
+  let registrar;
+  try {
+    registrar = accountById(id);
+  } catch {
+    throw new Error(
+      `The ${marketInfo(account.market).name} registrar account this uses is gone. Remove this market account, or add that registrar account again.`,
+    );
+  }
+  const route = accountProxyRoute(registrar);
+  return {
+    registrarAccountId: id,
+    ...(route && {
+      fetch: (input, init) =>
+        sendThroughProxy(
+          route,
+          typeof input === 'string'
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url,
+          init ?? {},
+        ),
+    }),
+  };
 }
 
 export function marketAccountViews(): MarketAccountView[] {
   return listMarketAccounts().map((a) => ({
     ...a,
-    configured: Object.keys(credentials.get(a.id) ?? {}).length > 0,
+    configured: hasCredentials(a),
     sync: lastSync.get(a.id) ?? null,
   }));
 }
@@ -58,14 +121,13 @@ export function marketAccount(id: string): MarketAccount {
 
 /** Enabled accounts with credentials: the ones sync and MCP use. */
 export function activeMarketAccounts(): MarketAccount[] {
-  return listMarketAccounts().filter(
-    (a) => a.enabled && Object.keys(credentials.get(a.id) ?? {}).length > 0,
-  );
+  return listMarketAccounts().filter((a) => a.enabled && hasCredentials(a));
 }
 
+/** An account's own credentials, for its card; none for a registrar-backed one. */
 export function getMarketCredentials(id: string): Credentials {
-  marketAccount(id);
-  return credentials.get(id) ?? {};
+  const account = marketAccount(id);
+  return account.registrarAccountId ? {} : (credentials.get(id) ?? {});
 }
 
 /** Every value saved for every market account, for scrubbing diagnostics
@@ -105,12 +167,18 @@ function cleanLabel(label: string | undefined, market: MarketId): string {
 /** The adapter for an account, from its stored credentials. */
 export function marketAdapter(id: string): AnyMarketAdapter {
   const account = marketAccount(id);
-  return buildAdapter(account.market, id, credentials.get(id) ?? {});
+  return buildAdapter(
+    account.market,
+    id,
+    credentialsOf(account),
+    contextOf(account),
+  );
 }
 
 /**
  * Connect a market account: test the credentials first, so a typo never
- * leaves an account behind, then save. Sync is the caller's next step.
+ * leaves an account behind, then save. Sync is the caller's next step. A
+ * market on a registrar's API takes the registrar account to use instead.
  */
 export async function connectMarketAccount(
   market: MarketId,
@@ -118,11 +186,11 @@ export async function connectMarketAccount(
   label?: string,
   /** A fixed id, for seeded data and tests. */
   id: string = crypto.randomUUID(),
+  registrarAccountId?: string | null,
 ): Promise<MarketAccountView> {
   if (!isMarketId(market)) throw new Error('Unknown market.');
-  const clean = cleanCredentials(market, raw);
+  const info = marketInfo(market);
   const name = cleanLabel(label, market);
-  const test = await buildAdapter(market, id, clean).test();
   const account: MarketAccount = {
     id,
     market,
@@ -130,9 +198,41 @@ export async function connectMarketAccount(
     enabled: true,
     createdAt: Date.now(),
   };
-  // Secrets first: a failed write never leaves an account without them.
-  await saveInOrder(id, () => credentials.set(id, clean));
-  await accounts.set(id, account);
+  let test;
+  if (info.registrar) {
+    if (!registrarAccountId) {
+      throw new Error(
+        `Choose the ${info.name} registrar account whose API key to use.`,
+      );
+    }
+    if (accountById(registrarAccountId).registrar !== info.registrar) {
+      throw new Error(`That isn’t a ${info.name} registrar account.`);
+    }
+    // Two would read the same listings twice.
+    if (
+      listMarketAccounts().some(
+        (a) => a.registrarAccountId === registrarAccountId,
+      )
+    ) {
+      throw new Error(
+        `A ${info.name} market account already uses that registrar account.`,
+      );
+    }
+    account.registrarAccountId = registrarAccountId;
+    test = await buildAdapter(
+      market,
+      id,
+      credentialsOf(account),
+      contextOf(account),
+    ).test();
+    await accounts.set(id, account);
+  } else {
+    const clean = cleanCredentials(market, raw);
+    test = await buildAdapter(market, id, clean).test();
+    // Secrets first: a failed write never leaves an account without them.
+    await saveInOrder(id, () => credentials.set(id, clean));
+    await accounts.set(id, account);
+  }
   setMarketSyncState(id, {
     at: Date.now(),
     lastError: null,
@@ -151,6 +251,11 @@ export async function saveMarketCredentials(
   raw: Credentials,
 ): Promise<void> {
   const account = marketAccount(id);
+  if (account.registrarAccountId) {
+    throw new Error(
+      'This account uses its registrar account’s API key. Change the key in Settings → Registrars.',
+    );
+  }
   const clean = cleanCredentials(account.market, raw);
   await buildAdapter(account.market, id, clean).test();
   await saveInOrder(id, () => credentials.set(id, clean));
@@ -195,6 +300,20 @@ export async function setMarketAccountEnabled(
   const account = marketAccount(id);
   if (account.enabled !== enabled) {
     await accounts.set(id, { ...account, enabled });
+  }
+}
+
+/**
+ * Remove the market accounts that use a registrar account's key, when that
+ * registrar account is removed.
+ */
+export async function removeMarketAccountsOf(
+  registrarAccountId: string,
+): Promise<void> {
+  for (const account of listMarketAccounts()) {
+    if (account.registrarAccountId === registrarAccountId) {
+      await removeMarketAccount(account.id);
+    }
   }
 }
 

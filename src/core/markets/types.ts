@@ -56,6 +56,21 @@ export interface MarketAdapter {
    * (`domainStats: 'snapshot'`): sync diffs two of them into a day's views.
    */
   domainCounters?(name: string): Promise<MarketCounters>;
+  /**
+   * The account's ownership verification value, for a market whose API
+   * gives it (Dynadot's Open Marketplace Key); sync saves it, so there's
+   * nothing to paste. Null when the market can't say yet.
+   */
+  verificationId?(): Promise<string | null>;
+  /**
+   * For a market that won't take a listing until it has verified that you
+   * own the name (Dynadot, for names held elsewhere): send DomBot's pending
+   * listings for the names it has verified since. Each result's `saved` is
+   * the listing as it stands, listed or still pending.
+   */
+  listVerified?(
+    pending: readonly MarketListing[],
+  ): Promise<MarketWriteResult[]>;
 }
 
 /** Running totals for one name, as a snapshot market reports them. */

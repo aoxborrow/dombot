@@ -74,6 +74,20 @@ export class RateLimiter {
   }
 }
 
+/**
+ * `fetch` that waits its turn on `limiter` first, for a library that takes a
+ * fetch (registrar-client) to share a market client's budget.
+ */
+export function pacedFetch(
+  limiter: RateLimiter,
+  inner: typeof fetch = (...args) => fetch(...args),
+): typeof fetch {
+  return async (input, init) => {
+    await limiter.take();
+    return inner(input, init);
+  };
+}
+
 const shared = new Map<string, RateLimiter>();
 
 /** The limiter for `key` (market and account), created on first use. */
