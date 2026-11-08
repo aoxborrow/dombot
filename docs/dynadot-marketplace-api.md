@@ -591,7 +591,9 @@ Held elsewhere:
   listing a market never took. Recheck ownership… and the end of an
   Ownership verification TXT job do the same for their names. Verify
   answered six calls in a row without a limit (2026-11-07). This makes
-  `market_sync` write, only for these names; its MCP description says so.
+  `market_sync` write, only for these names; its MCP description says so,
+  and it isn't marked read-only, so a host that auto-approves read-only
+  tools still asks.
 - **Delist:** `listing_other_registrar_domain` with `not_for_sale`. The name
   stays added and verified, so listing it again is one call. Taking it off
   Dynadot's list is done on Dynadot's dashboard, in bulk there (decided

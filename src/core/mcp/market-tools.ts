@@ -160,7 +160,13 @@ export function registerMarketTools(server: McpServer): void {
       description:
         'Re-read listings, sales and account stats from one market account (`accountId`) or every enabled one, and store them for market_listings, market_sales and market_stats_get. A live network pass that reads only, with one exception: a Dynadot listing DomBot is holding until Dynadot verifies the name goes out once it has. Completed sales become `sold` events in domain history. Returns each account’s sync result.',
       inputSchema: { accountId },
-      annotations: { readOnlyHint: true },
+      // Not read-only: it can put a Dynadot listing DomBot was holding live,
+      // so a host that auto-approves read-only tools still asks.
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
     },
     async ({ accountId: id }) => {
       if (id) await syncMarketAccount(marketAccount(id).id);
