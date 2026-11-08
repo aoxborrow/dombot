@@ -8,15 +8,15 @@ spec is embedded in the page as `__redoc_state`, which is the easiest way
 to read the schemas). Spaceship's release notes for SellerHub are at
 <https://www.spaceship.com/blog/sellerhub-updates/>.
 
-**Status: planned, nothing built, no live calls yet.** Everything below is
-from the spec and Spaceship's pages as read on 2026-11-03.
+**Status: planned, nothing built.** Written from the spec and Spaceship's
+pages (2026-11-03), with a few live reads on the key in `.env`
+(2026-11-07, "Credentials" and "Ownership verification").
 
-SellerHub is the first market that is also a registrar DomBot already
-supports, and the first to work with a key DomBot already holds. The
-Spaceship registrar account's API key and secret reach SellerHub as well,
-given the `sellerhub:*` scopes, so this is where the registrar-backed market
-account from atom-api.md ("One provider, registrar and market") and
-markets.md ("Storage", `registrarAccountId`) gets built.
+SellerHub runs on the Spaceship registrar's API with the same key and
+secret, given the `sellerhub:*` scopes. So it's a registrar-backed market
+account, the second after Dynadot's (PR #254,
+docs/dynadot-marketplace-api.md), which built them: SellerHub uses that
+build as it is.
 
 ## The API at a glance
 
@@ -147,55 +147,67 @@ ownership now" (the dashboard's Verify Domains), no bulk, and no account
 settings. Checkout links can be
 created but not listed or deactivated.
 
-## Credentials: borrowing the Spaceship registrar key
+## Credentials: the Spaceship registrar key
 
-This is the first build of "One provider, registrar and market"
-(atom-api.md). `MarketAccount.registrarAccountId` is in the record already;
-nothing sets or reads it yet.
+Dynadot's market (PR #254) built registrar-backed market accounts, the plan
+from atom-api.md ("One provider, registrar and market"). SellerHub takes
+them as built; `registrar: 'spaceship'` on its `MarketInfo` turns them on.
 
-- **Adding a SellerHub account** in Settings → Markets asks which Spaceship
-  registrar account it belongs to and uses that account's key: no second
-  copy of the key, no `market-credentials` entry. A **separate key** is the
-  fallback, for a Spaceship account that isn't connected as a registrar (or
-  a key with only SellerHub scopes); that one is stored in
-  `market-credentials` like any other market's.
-- **Credentials are read at call time** from `registrar-credentials` for a
-  linked account, so rotating the key on the registrar card fixes both.
-  The registry's `create(accountId, credentials)` doesn't change; the
-  service that resolves an account's credentials learns to follow the link.
-- **Scopes decide access.** A registrar key made before SellerHub, or
-  without its scopes, gets 403 from `/v1/sellerhub`. The market card's test
-  says so and points at Spaceship's API Manager ("Add sellerhub:read, and
-  sellerhub:write to list from DomBot"). A key with only `sellerhub:read`
-  syncs; writes fail with the same message.
-- **Enabled separately.** Linking never turns on listing sync for the
-  registrar account, and disabling the registrar account doesn't disable the
-  market account (or the reverse).
-- **The cards point at each other:** the market card shows "Uses the key of
-  <registrar account name>" with a link; the registrar card shows which
-  SellerHub account uses its key.
-- **Removing** a registrar account that backs a market account asks whether
-  to remove both, or keep the market account and enter a key for it.
-- **The link also says which names are the same account's.** A listed name
-  held by the linked registrar account needs no ownership verification, and
-  its sale transfer is internal to Spaceship. DomBot knows that without
-  matching names across accounts.
-- **Data bundles** need nothing new: a linked account has no secret of its
-  own.
-- **MCP:** `market_list` shows `registrarAccountId`, so an agent can go from
-  a listing to the registrar tools for the same name.
+- **Adding an account** in Settings → Markets picks one of your Spaceship
+  registrar accounts (one market account per registrar account: two would
+  read the same listings twice). The market account keeps no credentials of
+  its own and calls with the registrar account's key, through its proxy
+  route when it has one, so a rotated key reaches it at once. The market
+  card refuses a key change and points at Settings → Registrars.
+- **No separate key.** The build doesn't offer one, and SellerHub doesn't
+  need it: the key is the same either way, and a Spaceship account that
+  isn't connected yet is added as a registrar first, with nothing in it if
+  need be. (The first draft of this plan had a separate-key fallback.)
+- **The cards link one way.** The market card shows the registrar account
+  in a box (its logo and name) that opens its card in Settings → Registrars
+  (`?tab=registrars&account=<id>`). The registrar card doesn't point back
+  yet, and removing a registrar account doesn't ask about the market
+  account: the market card then says the registrar account is gone. Both
+  are left open for every registrar-backed market (#254, "Phases"), not
+  built here.
+- **Scopes decide access,** which is where Spaceship differs from Dynadot,
+  whose keys have none. A key without SellerHub's scopes gets 403 from
+  `/v1/sellerhub`; the account test says so and points at Spaceship's API
+  Manager ("Add sellerhub:read, and sellerhub:write to list from DomBot"). A
+  key with only `sellerhub:read` syncs, and writes fail with the same
+  message. The key in `.env` reads SellerHub (2026-11-07: listings, sold
+  report and verification records answered 200, beside the registrar's
+  domain list); whether it can write is unchecked.
+- **The adapter gets the context:** the registry's `create` passes the
+  registrar account's id and, with a proxy, a `fetch` through it. The client
+  sends every call with that `fetch`, and its limiter is keyed by the
+  registrar account, as Dynadot's is.
+- **Names the linked account holds** come back with `held` set to
+  `'spaceship'` in `extra`, every other name `'elsewhere'`, as Dynadot's
+  do. SellerHub doesn't say which, so the adapter reads the account's own domain list
+  (`GET /v1/domains`, the same key) beside the listings. A held name needs
+  no ownership verification and moves internally after a sale.
+- **Data bundles and MCP** need nothing new: a linked account has no secret
+  of its own, and `market_list` already shows `registrarAccountId`.
 - **Code stays split:** the SellerHub client lives in
-  `src/core/markets/spaceship/` beside Atom's and Sedo's, not in
+  `src/core/markets/spaceship/` beside the other markets', not in
   registrar-client. The two share only the key and the host.
 
 Rate limits are per user and per operation. Whether SellerHub calls and
 registrar calls on the same key share a budget is unknown (open question 7);
-the market client paces itself at 60 a minute regardless.
+the market client paces itself at 60 a minute regardless. Dynadot plans one
+limiter for a key's registrar and market calls (not built yet); SellerHub
+needs it less, since its limits are per operation and the registrar's bulk
+lane already spaces Spaceship calls 2 seconds apart.
 
 ## What it means for DomBot
 
-The market id is `spaceship`, the same as the registrar, shown as
-"Spaceship SellerHub".
+The market id is `spaceship`, the same as the registrar, and it's shown as
+"Spaceship", as Dynadot's market is "Dynadot". The registrar picker's copy
+is built from the market's name ("Spaceship Account", "No Spaceship
+registrar account is free"), so the two names have to match. SellerHub
+goes in the help text: "Sells your names on Spaceship SellerHub. Uses the
+registrar account's API key, which needs SellerHub access."
 
 ### Listings
 
@@ -211,7 +223,7 @@ The market id is `spaceship`, the same as the registrar, shown as
 | `floor`, `discount`, `leaseToOwn`, `tier` | null: not in the API                                          |
 | `currency`                                | `USD`                                                         |
 | `listedAt`, `updatedAt`                   | null: not in the API                                          |
-| `extra`                                   | `{ market: 'spaceship', description }`                        |
+| `extra`                                   | `{ market: 'spaceship', held, description }`                  |
 
 Writes, one name per call through the bulk runner (`writeBatch: 1`, market
 jobs above 10 names, as for Atom):
@@ -260,14 +272,23 @@ registrar side, but handing the code to Spaceship stays in SellerHub.
 
 ### Ownership verification
 
-- **The value comes from the API.** On save and on each test, DomBot reads
-  `getVerificationRecords` and fills the account's Ownership Verification ID
-  from the TXT option (`TXT @ <token>`), so there's nothing to paste. The
-  field shows it read-only. If Spaceship only offers the A/AAAA option
-  (records at `_spaceship_verify`), DomBot shows the records and doesn't
-  apply them (TXT only, as for every market).
-- **Ownership verification TXT…** works unchanged with that value, and is
-  skipped for names the linked registrar account holds.
+- **The value comes from the API,** through the adapter's
+  `verificationId()`, which Dynadot added: sync calls it and saves the
+  value when it changes, so there's nothing to paste (the field still takes
+  one, as Dynadot's does). Seen on the key in `.env` (2026-11-07): one
+  option, a TXT record at `@` whose value is a UUID. The spec's A/AAAA
+  option at `_spaceship_verify` isn't offered there; if an account only has
+  that, DomBot saves nothing (TXT only, as for every market). The
+  `spaceship` entry in `src/shared/market-verification.ts` parses a UUID,
+  and the TXT value is the UUID itself. Its label and menu path come from
+  the dashboard, not yet seen.
+- **Ownership verification TXT…** works unchanged with that value. Names
+  the linked account holds (`held: 'spaceship'`) never get a verification
+  mark, as with Dynadot.
+- **Nothing to hold back.** Dynadot refuses an unverified name, so DomBot
+  keeps that listing pending and sends it once verified (`listVerified`).
+  SellerHub takes the name and keeps it `verifying` itself (open
+  question 9), so it doesn't need that.
 - **No Recheck ownership.** The API has no "check now" (`verifyDns` is
   false), so the check is SellerHub's background one, or the user's own
   click on **Verify Domains** in the SellerHub dashboard. A name sitting in
@@ -327,7 +348,7 @@ capabilities. No SellerHub-only tools for now.
 ## Testing
 
 Unit tests map fixtures built from the spec's examples. Live tests follow
-Atom's: reads with the key in `.env` (`SPACESHIP_API_KEY`,
+Dynadot's: reads with the key in `.env` (`SPACESHIP_API_KEY`,
 `SPACESHIP_API_SECRET`), and a write round trip behind
 `SPACESHIP_LIVE_WRITES=1` on `SPACESHIP_TEST_DOMAIN`. Only domanio.com or
 domainio.com; both are held at 101domain, so they cover verification. A
@@ -335,27 +356,33 @@ name held at Spaceship, for the internal path, needs the user's pick.
 
 ## Phases
 
-1. **Registrar-backed market accounts:** the Settings flow, credentials
-   resolved through `registrarAccountId`, the cards pointing at each other,
-   remove-both, `market_list`. Built for SellerHub, written so Atom (#180),
-   Dynadot and Namecheap can use it.
-2. **Read side:** client (auth, problem+json errors, paging, cursor,
-   limiter), adapter, registry entry, listings and sales sync, `sold`
-   events, verification records into the ID, Settings card with the scope
-   check, demo account. Live reads.
-3. **Writes:** list, reprice, minimum offer, display name, description,
+Registrar-backed accounts come with Dynadot (#254), so SellerHub starts
+after it merges.
+
+1. **Read side:** client (auth, problem+json errors, paging, cursor, the
+   context's `fetch`, a limiter keyed by the registrar account), adapter
+   with `held` and `verificationId()`, registry entry on the `spaceship`
+   registrar, listings and sales sync, `sold` events, the scope message, the
+   verification entry, demo account. Live reads.
+2. **Writes:** list, reprice, minimum offer, display name, description,
    delist, through the List and Delist dialog, the bulk runner and the MCP
    listing tools. Live round trip on one test name.
-4. **Later:** lease-to-own and For Sale page settings, when Spaceship's API
+3. **Later:** lease-to-own and For Sale page settings, when Spaceship's API
    has them.
+
+Not here, open for every registrar-backed market: the registrar card
+pointing back, the remove-both prompt, and one limiter for a key's
+registrar and market calls.
 
 ## Open questions
 
 1. Does the sold report include sales still under way (`saleProcessing`,
    `leaseActive`), or only finished ones? For a lease-to-own sale, is
    `salePrice` the lease total, and when does it appear?
-2. Can an existing API key be given the SellerHub scopes, or does the user
-   need a new key (and so update the registrar card too)?
+2. Answered in part (2026-11-07): the key in `.env` reads SellerHub as it
+   is. Still open: whether it can write, and whether a key without the
+   scopes can be given them or has to be replaced (and the registrar card
+   updated).
 3. With Buy It Now off, does the For Sale page still show `binPrice`? Can
    Make an Offer be on without a minimum (`minPriceEnabled: false`), or does
    that turn offers off?

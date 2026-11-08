@@ -554,7 +554,8 @@ that repo, not part of this client. Things it would hit:
 
 Atom is one of several providers that are both a registrar and a market:
 Spaceship (SellerHub), Dynadot and Namecheap have marketplace APIs too, and
-DomBot will add them. Spaceship's comes first, and builds what follows
+DomBot will add them. Dynadot's came first and built what follows
+(docs/dynadot-marketplace-api.md); Spaceship's is next
 (docs/sellerhub-api.md). Often one API key covers both sides. DomBot shouldn't make the user enter
 the same key twice or keep two cards in step, so:
 
