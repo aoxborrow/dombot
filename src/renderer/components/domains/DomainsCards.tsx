@@ -225,23 +225,21 @@ export function DomainsCards({
       ),
     [rows, pricing, currency, fx],
   );
-  // What the BIN prices add up to, in the currency most of them use
-  // (amounts are never converted).
-  const bin = useMemo(() => {
-    const byCurrency = new Map<string, { sum: number; count: number }>();
-    for (const d of rows) {
-      const lp = listPrices[toAscii(d.domainName)];
-      if (lp?.amount == null) continue;
-      const e = byCurrency.get(lp.currency) ?? { sum: 0, count: 0 };
-      e.sum += Number(lp.amount);
-      e.count += 1;
-      byCurrency.set(lp.currency, e);
-    }
-    const [currency, main] = [...byCurrency].sort(
-      (a, b) => b[1].count - a[1].count,
-    )[0] ?? [null, null];
-    return { currency, sum: main?.sum ?? 0, count: main?.count ?? 0 };
-  }, [rows, listPrices]);
+  // What the names' Buy Now prices add up to, in your currency: each name's
+  // highest live Buy Now price across the markets in play (amounts in
+  // another currency converted at the day's rate, to compare and to add).
+  // Without a market account, DomBot's own asking prices.
+  const bin = useMemo(
+    () =>
+      binTotal(rows, {
+        listings: marketsOn ? listings : null,
+        markets,
+        listPrices,
+        currency,
+        fx,
+      }),
+    [rows, listings, markets, marketsOn, listPrices, currency, fx],
+  );
   // The words beside a card's number, or none.
   const words = (...parts: (string | false)[]) =>
     parts.filter(Boolean).join(' · ') || undefined;
@@ -448,25 +446,90 @@ export function DomainsCards({
         icon={Briefcase}
         accentClass="text-emerald-400"
         label="Total BIN"
-        // The BIN prices added up; in the currency most of them use.
         value={[
           {
-            value: bin.currency
+            value: bin.count
               ? formatMoneyNumber(
                   bin.sum,
-                  bin.currency,
+                  currency,
                   currency,
                   numberFormat,
                   true,
                 )
               : '—',
-            unit:
-              bin.currency && bin.count
-                ? `${compactMoney(bin.sum / bin.count, bin.currency, currency, numberFormat)} avg`
-                : undefined,
+            unit: bin.count
+              ? `${compactMoney(bin.sum / bin.count, currency, currency, numberFormat)} avg`
+              : undefined,
           },
         ]}
+        title={
+          (marketsOn
+            ? `Each name's highest live Buy Now price across ${markets.length === 1 ? 'the market' : 'the markets'} shown, added up in ${currency}`
+            : `Your asking prices added up, in ${currency}`) +
+          (bin.leftOut
+            ? `. ${bin.leftOut.toLocaleString()} ${bin.leftOut === 1 ? 'name is' : 'names are'} priced in a currency without a rate, and left out.`
+            : '.')
+        }
       />
     </StatCardRow>
   );
+}
+
+/**
+ * The Total BIN card's sum, in `currency`: for each row, its highest live
+ * Buy Now price on the given markets (with `listings`), else its DomBot
+ * asking price. Prices in another currency are converted to compare and add;
+ * a name with no price that converts is left out and counted in `leftOut`.
+ */
+export function binTotal(
+  rows: readonly Domain[],
+  {
+    listings,
+    markets,
+    listPrices,
+    currency,
+    fx,
+  }: {
+    listings: Record<string, MarketListing[]> | null;
+    markets: readonly string[];
+    listPrices: Record<string, ListPrice>;
+    currency: string;
+    fx: Pick<ExchangeRates, 'convert'>;
+  },
+): { sum: number; count: number; leftOut: number } {
+  let sum = 0;
+  let count = 0;
+  let leftOut = 0;
+  for (const d of rows) {
+    const key = toAscii(d.domainName);
+    const prices = listings
+      ? (listings[key] ?? []).flatMap((l) =>
+          markets.includes(l.market) &&
+          marketState(l) === 'active' &&
+          l.buyNow &&
+          l.price != null
+            ? [{ amount: l.price, currency: l.currency }]
+            : [],
+        )
+      : listPrices[key]?.amount != null
+        ? [
+            {
+              amount: listPrices[key].amount!,
+              currency: listPrices[key].currency,
+            },
+          ]
+        : [];
+    let best: number | null = null;
+    for (const p of prices) {
+      const value = fx.convert(p.amount, p.currency, currency)?.amount ?? null;
+      if (value != null && (best === null || value > best)) best = value;
+    }
+    if (best !== null) {
+      sum += best;
+      count += 1;
+    } else if (prices.length) {
+      leftOut += 1;
+    }
+  }
+  return { sum, count, leftOut };
 }

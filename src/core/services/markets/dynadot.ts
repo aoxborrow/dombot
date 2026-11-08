@@ -476,22 +476,38 @@ export class DynadotAdapter implements MarketAdapter {
         throw error;
       }
     }
-    await this.client.setLock(name, false);
+    try {
+      await this.client.setLock(name, false);
+    } catch (error) {
+      // A refusal changed nothing. With no answer, or a server error,
+      // Dynadot may have unlocked it all the same: lock it again.
+      const uncertain =
+        !(error instanceof DynadotError) ||
+        error.status === 0 ||
+        error.status >= 500;
+      if (uncertain) await this.relock(name, true);
+      throw error;
+    }
     let failure: unknown = null;
     try {
       await write();
     } catch (error) {
       failure = error;
     }
+    await this.relock(name);
+    if (failure) throw failure;
+  }
+
+  /** Lock a name again after unlocking it (or maybe unlocking it) to write. */
+  private async relock(name: string, maybe = false): Promise<void> {
     try {
       await this.client.setLock(name, true);
     } catch (error) {
       const why = error instanceof Error ? error.message : String(error);
       throw new RelockError(
-        `${name} is unlocked: couldn’t lock it again (${why}).`,
+        `${name} ${maybe ? 'may be' : 'is'} unlocked: couldn’t lock it again (${why}).`,
       );
     }
-    if (failure) throw failure;
   }
 
   /** The key works: Dynadot answers the account read. */

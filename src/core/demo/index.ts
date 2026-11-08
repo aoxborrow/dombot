@@ -158,6 +158,7 @@ export async function installDemo(
     (name) => authCodeNames.has(name),
     approvesTransfer,
     (name) => world.get(name)?.registrar === 'dynadot',
+    (name) => world.get(name)?.registrar === 'spaceship',
   );
   // The sale at its transfer step: the buyer's registrar has asked for the
   // name, and its registrar holds it for you to answer (Approve transfer).

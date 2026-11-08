@@ -312,9 +312,11 @@ decimal strings or numbers.
   `price` (the Buy Now price; null: offers only), `minOffer`,
   `floor` (null clears), `currency`, `forSale`, `leaseToOwn`, `afternic`
   (lander settings), `sedo` (`categories`, `language`), `atom` (`tier` for
-  a new listing, Standard or Plus; `category`; `description`). Lists the
-  name if it isn't listed. On Sedo a new listing comes back `pending` until
-  Sedo's checks pass. Atom takes one whole-dollar price of $100 or more
+  a new listing, Standard or Plus; `category`; `description`), `spaceship`
+  (`description`). Lists the name if it isn't listed. On Sedo a new listing
+  comes back `pending` until Sedo's checks pass, and on Spaceship SellerHub a
+  name held outside the Spaceship account until SellerHub has checked its
+  TXT record. Atom takes one whole-dollar price of $100 or more
   (or null, Make an Offer) and rejects `minOffer` and `floor`. `fromAskingPrice: true` takes the prices from DomBot's
   asking price instead. `accountId` can be left out when the name is listed
   in one account or there's only one.

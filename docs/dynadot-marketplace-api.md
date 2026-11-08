@@ -372,12 +372,11 @@ name held elsewhere.
 
 ## Credentials: the Dynadot registrar key
 
-SellerHub's plan builds registrar-backed market accounts first
-(docs/sellerhub-api.md, "Credentials: borrowing the Spaceship registrar
-key"), and Dynadot uses the same flow: pick a Dynadot registrar account,
-read its key at call time, and removing the registrar account removes the
-market account with it (built here, 2026-11-07; the registrar card doesn't
-point back). Whichever market lands first builds it. What's different for
+Dynadot built registrar-backed market accounts, and Spaceship SellerHub
+uses them as they are (docs/sellerhub-api.md, "Credentials"): pick a
+registrar account, read its key at call time, and removing the registrar
+account removes the market account with it (built here, 2026-11-07; the
+registrar card doesn't point back). What's different for
 Dynadot:
 
 - **No scopes.** Nothing in the reference scopes a key, so any key that

@@ -237,6 +237,7 @@ export default function RegistrarsSettings() {
 function SyncAllButton() {
   const {
     syncRegistrars,
+    syncingShort,
     registrarsSyncing: syncing,
     disabled,
     title,
@@ -249,7 +250,7 @@ function SyncAllButton() {
       title={title}
     >
       <RefreshCw className={cn(syncing && 'animate-spin')} />
-      {syncing ? 'Syncing…' : 'Sync all'}
+      {syncing ? syncingShort : 'Sync all'}
       {/* Room for the full label beside Add from sm up. */}
       {!syncing && <span className="-ml-1 hidden sm:inline">registrars</span>}
     </Button>
