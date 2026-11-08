@@ -17,6 +17,7 @@ import {
   Server,
   Tag,
   Trash2,
+  Import,
 } from 'lucide-react';
 import type { Domain, DomainOpKind, Folder } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
@@ -288,6 +289,11 @@ export function BulkActionsBar({
                     <CashIcon className={icon} />
                     Pricing{dots}
                   </DropdownMenuItem>
+                  {marketItem(
+                    'importPrice',
+                    <Import className={icon} />,
+                    'Import listed prices',
+                  )}
                   {marketItem(
                     'list',
                     <Tag className={icon} />,

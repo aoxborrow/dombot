@@ -15,6 +15,7 @@ import {
   Server,
   Tag,
   Trash2,
+  Import,
 } from 'lucide-react';
 import type { Domain, DomainOp, Folder } from '../../../shared/ipc';
 import type { ArchiveLabel } from '../../../shared/ownership';
@@ -389,6 +390,11 @@ export function RowActionsMenu({
                 <CashIcon className={icon} />
                 Pricing{dots}
               </DropdownMenuItem>
+              {marketItem(
+                'importPrice',
+                <Import className={icon} />,
+                'Import listed price',
+              )}
               {marketItem(
                 'list',
                 <Tag className={icon} />,

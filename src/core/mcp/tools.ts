@@ -96,6 +96,9 @@ import {
 } from './portfolio-query';
 import { registerMarketTools } from './market-tools';
 import { marketListings, marketSales } from '../services/markets/sync';
+import { exchangeRates } from '../services/exchange-rates';
+import type { MarketListing } from '../../shared/markets';
+import { listedPriceFor } from '../../shared/listed-prices';
 import { marketAccountViews } from '../services/markets/accounts';
 import { marketCatalog } from '../services/markets/registry';
 
@@ -1356,6 +1359,87 @@ export function registerTools(server: McpServer): void {
               currency: saved.currency,
             }
           : null,
+      });
+    },
+  );
+
+  server.registerTool(
+    'portfolio_asking_prices_import',
+    {
+      title: 'Import asking prices from market listings',
+      description:
+        'Copy what a marketplace lists names for — its BIN price, minimum offer and floor — into your DomBot asking prices (the app’s "Import listed price"), so you can price in DomBot from then on and push them out with market_listings_set. `source` is one market, or `highest` for whichever listing is highest (BIN, then minimum offer, then floor, compared in USD). The listing’s three amounts are taken together and rounded to whole amounts; a minimum offer or floor above the BIN price is dropped. Names that already have an asking price keep it unless `replace` is true. Reads the listings DomBot last synced (run market_sync first for fresh ones). DomBot-local — no marketplace call.',
+      inputSchema: {
+        domains: z
+          .array(z.string())
+          .min(1)
+          .max(5000)
+          .optional()
+          .describe(
+            'The names to import for. Omit for every name with a listed price.',
+          ),
+        source: z
+          .enum(['highest', 'afternic', 'atom', 'dynadot', 'sedo'])
+          .default('highest')
+          .describe('The market to copy from, or `highest` (default).'),
+        replace: z
+          .boolean()
+          .default(false)
+          .describe('Replace asking prices you already set (default false).'),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ domains: names, source = 'highest', replace = false }) => {
+      const byName = new Map<string, MarketListing[]>();
+      for (const l of marketListings()) {
+        const key = toAscii(l.name);
+        byName.set(key, [...(byName.get(key) ?? []), l]);
+      }
+      const keys = names
+        ? [...new Set(names.map(assertInPortfolio))]
+        : [...byName.keys()];
+      const rates = exchangeRates();
+      const current = getListPrices();
+      const imported: { domain: string; market: string }[] = [];
+      const kept: string[] = [];
+      const unlisted: string[] = [];
+      const inputs: Parameters<typeof setListPrices>[0] = [];
+      for (const key of keys) {
+        const price = listedPriceFor(byName.get(key), source, rates);
+        if (!price) {
+          unlisted.push(key);
+          continue;
+        }
+        if (current[key] && !replace) {
+          kept.push(key);
+          continue;
+        }
+        inputs.push({
+          domainName: key,
+          amount: price.amount,
+          minOffer: price.minOffer,
+          floor: price.floor,
+          currency: price.currency,
+        });
+        imported.push({ domain: key, market: price.market });
+      }
+      if (inputs.length > 0) setListPrices(inputs);
+      const saved = getListPrices();
+      return localWrite({
+        imported: imported.map(({ domain, market }) => ({
+          domain,
+          market,
+          askingPrice: saved[domain]
+            ? {
+                amount: saved[domain].amount,
+                minOffer: saved[domain].minOffer ?? null,
+                floor: saved[domain].floor ?? null,
+                currency: saved[domain].currency,
+              }
+            : null,
+        })),
+        kept,
+        notListed: unlisted,
       });
     },
   );

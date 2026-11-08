@@ -151,6 +151,14 @@ portfolio: synced, imported, or with history.
   `currency?`. Replaces the asking price: what's left out is cleared, and all
   three left out removes it. `currency` is required unless clearing. Returns
   `{ domain, askingPrice }`.
+- **`portfolio_asking_prices_import`** — `domains?` (default: every name
+  with a listed price), `source?` (`highest`, the default, or a market id),
+  `replace?` (default `false`). Copies a market listing's BIN price, minimum
+  offer and floor into the asking price, as the app's Import listed price
+  does: `highest` takes the highest listing (BIN, then minimum offer, then
+  floor, in USD), amounts are rounded to whole, and one above the BIN price
+  is dropped. Names with an asking price keep it unless `replace`. Returns
+  `{ imported: [{ domain, market, askingPrice }], kept, notListed }`.
 - **`domain_renewal_price_set`** — `amount` (`null` clears it), `currency?`
   (default `USD`). Your yearly price, which `domain_renewal_price` then
   reports with source `manual`. Returns `{ domain, renewalPrice }`.
