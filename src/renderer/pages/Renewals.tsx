@@ -1,5 +1,4 @@
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
-import { domainKey } from '../../shared/account-key';
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
@@ -30,28 +29,19 @@ import {
   dueWithin,
   groupBy,
   leavesOut,
-  priceOf,
   summarize,
   tldOf,
   upcomingByMonth,
-  wholeMoney,
   type Group,
   type MonthBucket,
 } from '../lib/renewals';
 import { periodLabel } from '../../shared/exchange-rates';
-import { DEFAULT_CURRENCY } from '../../shared/money';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { EmptyState } from '../components/EmptyState';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+  DEFAULT_CURRENCY,
+  DEFAULT_NUMBER_FORMAT,
+  formatMoneyNumber,
+} from '../../shared/money';
+import { EmptyState } from '../components/EmptyState';
 
 type RegistrarLabels = Record<string, string>;
 
@@ -123,10 +113,6 @@ const ManualIcon = function ManualIcon({ className }: { className?: string }) {
   return <Stamp className={cn(className, 'scale-[1.083]')} />;
 } as LucideIcon;
 
-// The "Set prices manually" editor is hidden for now; the state and handlers
-// stay wired up so it can be switched back on later.
-const MANUAL_PRICING_ENABLED = false;
-
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Renewals() {
@@ -136,7 +122,6 @@ export default function Renewals() {
     portfolioLoadedAt,
     portfolioRegistrarLabels,
     pricing,
-    setManualPrice,
     domainEvents,
     marketSales,
     registrationLookups,
@@ -272,7 +257,14 @@ export default function Renewals() {
     (s) => s.settings?.preferredCurrency ?? DEFAULT_CURRENCY,
   );
   const fx = useAppStore((s) => s.exchangeRates);
-  const usd = (n: number) => wholeMoney(n, currency);
+  const numberFormat = useAppStore(
+    (s) => s.settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT,
+  );
+  // Totals are whole; the exact amount is in their hover.
+  const usd = (n: number) =>
+    formatMoneyNumber(n, currency, currency, numberFormat, true);
+  const exact = (n: number) =>
+    formatMoneyNumber(n, currency, currency, numberFormat);
   const summary = useMemo(
     () => summarize(portfolio, pricing, currency, fx),
     [portfolio, pricing, currency, fx],
@@ -358,17 +350,6 @@ export default function Renewals() {
   const regSpendTotal = regSpend.reduce((s, x) => s + x.value, 0);
   const tldSpendTotal = tldSpend.reduce((s, x) => s + x.value, 0);
 
-  // Domains that can't be priced automatically or already carry a manual price —
-  // the working set for the inline editor.
-  const needsPrice = useMemo(
-    () =>
-      portfolio.filter((d) => {
-        const p = priceOf(d, pricing);
-        return p?.source === 'unavailable' || p?.source === 'manual';
-      }),
-    [portfolio, pricing],
-  );
-
   if (!hasPortfolio) {
     return (
       <div className="mx-auto w-full max-w-[1400px]">
@@ -421,6 +402,7 @@ export default function Renewals() {
           accentClass="text-sky-400"
           label="Monthly avg"
           value={usd(monthly)}
+          title={exact(monthly)}
         />
         <StatCard
           size="sm"
@@ -428,6 +410,7 @@ export default function Renewals() {
           accentClass="text-violet-400"
           label="Yearly"
           value={[{ value: usd(summary.yearly) }]}
+          title={exact(summary.yearly)}
         />
         <StatCard
           size="sm"
@@ -440,6 +423,7 @@ export default function Renewals() {
               unit: `${due30.count} name${due30.count === 1 ? '' : 's'}`,
             },
           ]}
+          title={exact(due30.yearly)}
         />
         <StatCard
           size="sm"
@@ -452,6 +436,7 @@ export default function Renewals() {
               unit: `${due90.count} name${due90.count === 1 ? '' : 's'}`,
             },
           ]}
+          title={exact(due90.yearly)}
         />
       </StatCardRow>
 
@@ -464,7 +449,7 @@ export default function Renewals() {
       </div>
 
       {/* Spend over time, between the totals and the composition donuts. */}
-      <MonthlyBarChart months={months} fmt={usd} />
+      <MonthlyBarChart months={months} fmt={usd} exact={exact} />
 
       {/* Composition: two pairs (count + spend), one row per dimension. */}
       <div className="grid gap-[13px] md:grid-cols-2">
@@ -481,6 +466,7 @@ export default function Renewals() {
           centerValue={usd(regSpendTotal)}
           centerLabel="per year"
           fmt={usd}
+          exact={exact}
         />
         <DonutCard
           title="Domains by TLD"
@@ -495,18 +481,9 @@ export default function Renewals() {
           centerValue={usd(tldSpendTotal)}
           centerLabel="per year"
           fmt={usd}
+          exact={exact}
         />
       </div>
-
-      {/* Manual price editor */}
-      {MANUAL_PRICING_ENABLED && needsPrice.length > 0 && (
-        <PriceEditor
-          domains={needsPrice}
-          labels={portfolioRegistrarLabels}
-          pricing={pricing}
-          onSave={setManualPrice}
-        />
-      )}
     </div>
   );
 }
@@ -544,10 +521,13 @@ const BAR_COLOR = '#35509e';
 function MonthlyBarChart({
   months,
   fmt: usd,
+  exact,
 }: {
   months: MonthBucket[];
   /** Whole amounts in the page's currency. */
   fmt: (n: number) => string;
+  /** Exact amounts, for the hovers. */
+  exact: (n: number) => string;
 }) {
   const max = Math.max(1, ...months.map((m) => m.yearly));
   const total = months.reduce((sum, m) => sum + m.yearly, 0);
@@ -559,7 +539,7 @@ function MonthlyBarChart({
         <h2 className="text-[15px] font-semibold text-foreground/75">
           Renewals by month
         </h2>
-        <span className="text-xs text-muted-foreground">
+        <span className="text-xs text-muted-foreground" title={exact(total)}>
           {usd(total)} over 12 months
         </span>
       </div>
@@ -584,7 +564,7 @@ function MonthlyBarChart({
                     height: `${pct}%`,
                     backgroundColor: BAR_COLOR,
                   }}
-                  title={`${m.label}: ${usd(m.yearly)}${
+                  title={`${m.label}: ${exact(m.yearly)}${
                     m.leftOut.length ? ` (${lower(leavesOut(m.leftOut))})` : ''
                   } · ${m.count} domain${m.count === 1 ? '' : 's'}`}
                 />
@@ -709,12 +689,15 @@ function DonutCard({
   centerValue,
   centerLabel,
   fmt,
+  exact,
 }: {
   title: string;
   slices: Slice[];
   centerValue: string;
   centerLabel: string;
   fmt: (n: number) => string;
+  /** Exact amounts, for the hovers of rounded ones. */
+  exact?: (n: number) => string;
 }) {
   const total = slices.reduce((sum, s) => sum + s.value, 0);
   return (
@@ -739,7 +722,7 @@ function DonutCard({
               />
               <span className="truncate">{s.label}</span>
               <span className="ml-auto flex shrink-0 items-baseline gap-1 tabular-nums">
-                <span>{fmt(s.value)}</span>
+                <span title={exact?.(s.value)}>{fmt(s.value)}</span>
                 {total > 0 && (
                   <span className="text-muted-foreground/60">
                     {Math.round((s.value / total) * 100)}%
@@ -751,143 +734,5 @@ function DonutCard({
         </ul>
       </div>
     </div>
-  );
-}
-
-// ── Manual price editor ──────────────────────────────────────────────────────
-
-function PriceEditor({
-  domains,
-  labels,
-  pricing,
-  onSave,
-}: {
-  domains: Domain[];
-  labels: RegistrarLabels;
-  pricing: ReturnType<typeof useAppStore.getState>['pricing'];
-  onSave: (
-    domain: string,
-    price: { amount: string; currency: string } | null,
-  ) => Promise<void>;
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <h2 className="text-[15px] font-semibold text-foreground/75">
-        Set prices manually{' '}
-        <span className="font-normal text-muted-foreground/70">
-          · registrars with no pricing API, or your own overrides
-        </span>
-      </h2>
-      <div className="overflow-x-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Domain</TableHead>
-              <TableHead>Registrar</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-[220px] text-right">
-                Annual price
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {domains.map((d) => {
-              const p = priceOf(d, pricing);
-              return (
-                <PriceEditorRow
-                  key={domainKey(d)}
-                  domain={d}
-                  label={registrarLabel(d.registrar, labels)}
-                  current={p?.source === 'manual' ? p.renewal : null}
-                  currency={p?.currency ?? 'USD'}
-                  isManual={p?.source === 'manual'}
-                  onSave={onSave}
-                />
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  );
-}
-
-function PriceEditorRow({
-  domain,
-  label,
-  current,
-  currency,
-  isManual,
-  onSave,
-}: {
-  domain: Domain;
-  label: string;
-  current: number | null;
-  /** The price's currency (USD for a name with no price yet). */
-  currency: string;
-  isManual: boolean;
-  onSave: (
-    domain: string,
-    price: { amount: string; currency: string } | null,
-  ) => Promise<void>;
-}) {
-  const [value, setValue] = useState(current != null ? String(current) : '');
-  const [saving, setSaving] = useState(false);
-
-  const parsed = value.trim() === '' ? null : Number(value);
-  const invalid = parsed !== null && (Number.isNaN(parsed) || parsed < 0);
-  const dirty = value.trim() !== (current != null ? String(current) : '');
-
-  async function save() {
-    if (invalid) return;
-    setSaving(true);
-    try {
-      await onSave(
-        domain.domainName,
-        parsed === null ? null : { amount: String(parsed), currency },
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <TableRow>
-      <TableCell className="font-mono">{domain.domainName}</TableCell>
-      <TableCell>{label}</TableCell>
-      <TableCell>
-        {isManual ? (
-          <Badge variant="secondary">manual</Badge>
-        ) : (
-          <Badge variant="outline">no price</Badge>
-        )}
-      </TableCell>
-      <TableCell className="text-right">
-        <div className="flex items-center justify-end gap-2">
-          <Input
-            type="number"
-            inputMode="decimal"
-            min={0}
-            step="0.01"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void save();
-            }}
-            placeholder="—"
-            aria-invalid={invalid}
-            className="h-8 w-28 text-right tabular-nums"
-          />
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={saving || invalid || !dirty}
-            onClick={() => void save()}
-          >
-            {saving ? '…' : 'Save'}
-          </Button>
-        </div>
-      </TableCell>
-    </TableRow>
   );
 }

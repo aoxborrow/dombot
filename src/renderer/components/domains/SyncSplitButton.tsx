@@ -48,10 +48,13 @@ export function SyncSplitButton({
   onImport,
   onExportView,
   onExportAll,
+  failing = false,
 }: {
   /** Rows in the current filtered view / in the whole list, for export. */
   viewCount: number;
   allCount: number;
+  /** A sync failed: the header shows its red icon. */
+  failing?: boolean;
   onImport: () => void;
   onExportView: () => void;
   onExportAll: () => void;
@@ -90,8 +93,9 @@ export function SyncSplitButton({
 
   return (
     <div className="flex shrink-0 items-center gap-3">
-      {/* Just after a sync the button itself says so. */}
-      {lastSyncedAt !== null && !syncing && !tooSoon && (
+      {/* Just after a sync the button itself says so. The amber "stale" age
+          gives way to the red sync-failure icon beside it. */}
+      {lastSyncedAt !== null && !syncing && !tooSoon && !(stale && failing) && (
         <span
           className={cn(
             'hidden text-xs text-muted-foreground sm:inline',

@@ -317,7 +317,17 @@ Following docs/storage-model.md:
   one it no longer lists is dropped (a pending insert stays, as in sync), and
   an account that fails keeps its rows and is named in the toast. Atom reads
   one name per call, so there only names it already lists are re-read.
-- Sales: full history once, then from the newest `soldOn` minus a week.
+- Sales: full history once, then from the newest `soldOn` minus 45 days.
+  Afternic filters by date, so its history is read a calendar year at a
+  time, newest first, back to 2000 (`salesHistoryFrom`): a big seller's
+  whole history in one request outlasted the timeout. Each year is stored as
+  it lands and the account's sync state keeps how far back it got
+  (`salesRead`), so a year that fails leaves a "Sales history … paused" note
+  and the next sync carries on from there. Atom takes no dates and reads
+  everything each time.
+- Timeouts: every registrar and market request gets 90 seconds
+  (`API_TIMEOUT_MS`), retries on top; the renderer gives up on a whole sync
+  after 15 minutes.
 - Account stats: the last few days each sync, a year on first sync.
 - Per-domain stats: a slow background rotation (one call per name: hours for
   10,000 names on Afternic, longer on Atom), prioritizing names the user opens

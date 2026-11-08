@@ -47,6 +47,7 @@ export function StatCard({
   size = 'default',
   to,
   onClick,
+  title,
 }: {
   /** A lucide icon, or one of ours drawn like one (components/icons). */
   icon: ComponentType<{ className?: string; 'aria-hidden'?: boolean }>;
@@ -57,6 +58,8 @@ export function StatCard({
   size?: 'default' | 'sm';
   to?: string;
   onClick?: () => void;
+  /** A hover for the card, e.g. the exact amount of a rounded total. */
+  title?: string;
 }) {
   const sm = size === 'sm';
   const className = cn(
@@ -174,17 +177,26 @@ export function StatCard({
   );
   if (to)
     return (
-      <Link to={to} className={className}>
+      <Link to={to} className={className} title={title}>
         {body}
       </Link>
     );
   if (onClick)
     return (
-      <button type="button" onClick={onClick} className={className}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={className}
+        title={title}
+      >
         {body}
       </button>
     );
-  return <div className={className}>{body}</div>;
+  return (
+    <div className={className} title={title}>
+      {body}
+    </div>
+  );
 }
 
 /**

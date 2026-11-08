@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ExchangeRates } from '../../shared/exchange-rates';
 import type { Domain, RenewalPricing } from '../../shared/ipc';
 import {
+  compactMoney,
   dueWithin,
   groupBy,
   leavesOut,
@@ -52,6 +53,20 @@ beforeEach(() => {
   vi.setSystemTime(NOW);
 });
 afterEach(() => vi.useRealTimers());
+
+describe('compactMoney', () => {
+  it('is whole under a thousand, then in thousands', () => {
+    expect(compactMoney(820.4, 'USD', 'USD', 'us')).toBe('$820');
+    expect(compactMoney(4210, 'USD', 'USD', 'us')).toBe('$4.2k');
+    expect(compactMoney(120_000, 'EUR', 'USD', 'us')).toBe('€120k');
+  });
+
+  it('follows the number format and shows a shared symbol’s code', () => {
+    expect(compactMoney(4210, 'EUR', 'EUR', 'eu-dot')).toBe('€4,2k');
+    expect(compactMoney(4210, 'CAD', 'USD', 'us')).toBe('$4.2k CAD');
+    expect(compactMoney(42_000, 'JPY', 'USD', 'us')).toBe('¥42k JPY');
+  });
+});
 
 describe('tldOf', () => {
   it('takes everything after the first dot, lowercased', () => {

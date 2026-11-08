@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { registrars } from '@aoxborrow/registrar-client';
-import ianaData from '../../../data/iana-registrars.json';
-import mappingData from '../../../data/registrar-mapping.json';
+import ianaData from '../../data/iana-registrars.json';
+import mappingData from '../../data/registrar-mapping.json';
 import {
   registrarNameKeys,
   resolveRegistrar,
@@ -117,6 +117,9 @@ describe('resolveRegistrar', () => {
     ['Gransy, s.r.o.', 'Regtons'],
     ['Dotster, Inc.', 'Domain.com'],
     ['Reg.com', 'Reg.ru'],
+    ['Unstoppable Domains Inc.', 'Unstoppable'],
+    ['Unstoppable Domains', 'Unstoppable'],
+    ['UnstoppableUS3 LLC', 'Unstoppable'],
   ])('maps the WHOIS string %s to %s', (name, label) => {
     expect(resolveRegistrar({ name })?.label).toBe(label);
   });

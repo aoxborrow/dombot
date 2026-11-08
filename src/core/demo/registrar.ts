@@ -579,6 +579,7 @@ export function defaultNameservers(registrar: RegistrarName): string[] {
       'salvador.ns.porkbun.com',
     ],
     spaceship: ['launch1.spaceship.net', 'launch2.spaceship.net'],
+    unstoppable: ['ns1.unstoppabledomains.com', 'ns2.unstoppabledomains.com'],
   };
   return [...table[registrar]];
 }

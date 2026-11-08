@@ -1,6 +1,10 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CircleAlert, FileUp, Info, Pencil, Upload } from 'lucide-react';
+import {
+  registrars as builtInRegistrars,
+  type RegistrarName,
+} from '@aoxborrow/registrar-client';
 import { decodeText, toCsv } from '../../../shared/csv';
 import { domainsCsvTemplate } from '../../../shared/domain-csv';
 import { newEventId } from '../../../shared/domain-events';
@@ -686,7 +690,6 @@ export function ImportDomainsDialog({ onClose }: { onClose: () => void }) {
                       ? hasWarnings(r)
                       : r.result === filter,
               )}
-              registrars={ctx.registrars}
               money={(amount, currency, whole) =>
                 // A 0 in the file clears the amount.
                 Number(amount) === 0
@@ -1525,7 +1528,6 @@ function NewFolders({ names }: { names: string[] }) {
  */
 function ReviewTable({
   rows,
-  registrars,
   folders,
   money,
   dim = false,
@@ -1533,7 +1535,6 @@ function ReviewTable({
   rows: ReviewRow[];
   /** Faded and inert while the import writes. */
   dim?: boolean;
-  registrars: ImportContext['registrars'];
   /** For each folder's color; a name that isn't one yet is created. */
   folders: Folder[];
   /** `whole` for prices, which have no cents. */
@@ -1563,8 +1564,12 @@ function ReviewTable({
       />
     );
   };
+  // Any built-in registrar, not only the user's: a cell names whichever it
+  // matched.
   const registrarName = (id: string) =>
-    registrars.find((r) => r.id === id)?.displayName ?? id;
+    Object.hasOwn(builtInRegistrars, id)
+      ? builtInRegistrars[id as RegistrarName].displayName
+      : id;
   const allColumns: ValueColumn[] = [
     {
       key: 'status',

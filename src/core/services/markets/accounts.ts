@@ -68,6 +68,15 @@ export function getMarketCredentials(id: string): Credentials {
   return credentials.get(id) ?? {};
 }
 
+/** Every value saved for every market account, for scrubbing diagnostics
+ *  (see stored-secrets.ts). Empty until storage is hydrated. */
+export function marketCredentialValues(): string[] {
+  if (!credentials.loaded) return [];
+  return Object.values(credentials.all()).flatMap((creds) =>
+    Object.values(creds).filter((v): v is string => typeof v === 'string'),
+  );
+}
+
 export function getMarketSyncState(id: string): MarketSyncState | null {
   return lastSync.get(id) ?? null;
 }

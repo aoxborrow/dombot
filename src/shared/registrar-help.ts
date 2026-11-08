@@ -208,4 +208,22 @@ export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
     ],
     fields: {},
   },
+
+  unstoppable: {
+    summary:
+      'An MCP API key from Account Settings › Advanced (it starts with ' +
+      '`ud_mcp_`). Only regular (ICANN) domains are listed, not web3 names. ' +
+      'Registration, renewal, transfers and contacts aren’t supported.',
+    links: [
+      {
+        label: 'Account Settings',
+        url: 'https://unstoppabledomains.com/account/settings',
+      },
+      {
+        label: 'How to create an MCP API key',
+        url: 'https://support.unstoppabledomains.com/support/solutions/articles/48001280210-connect-your-ai-agent-to-unstoppable-domains',
+      },
+    ],
+    fields: {},
+  },
 };

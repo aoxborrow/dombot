@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
   type ComponentProps,
   type ReactNode,
@@ -10,6 +11,7 @@ import {
   BookOpen,
   Bug,
   ExternalLink,
+  FolderOpen,
   Globe,
   Heart,
   Lightbulb,
@@ -24,7 +26,11 @@ import { Switch } from '@/components/ui/switch';
 import { isDemo, isWeb } from '@/lib/platform';
 import { releaseNotesUrl, updateUrl, useUpdates } from '@/lib/updates';
 import { timeAgo } from '@/lib/time';
-import { isDevVersion, releasesNewerThan } from '../../../shared/releases';
+import {
+  feedIsStale,
+  isDevVersion,
+  releasesNewerThan,
+} from '../../../shared/releases';
 import type { UpdaterState } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
 import { SETTINGS_LINK, SettingsCard } from './SettingsCard';
@@ -37,6 +43,11 @@ const PLATFORM_LABEL: Record<string, string> = {
   win32: 'Windows',
   linux: 'Linux',
   web: 'Self-hosted',
+};
+
+const REVEAL_LABEL: Record<string, string> = {
+  darwin: 'Show in Finder',
+  win32: 'Show in Explorer',
 };
 
 /** A link out of the app, in a new tab on the web. On the desktop the main
@@ -66,15 +77,22 @@ export default function AboutSettings() {
     void loadSettings();
   }, [appInfo, loadAppInfo, loadSettings]);
 
-  // Opening the page loads the list if this device has none stored yet,
-  // unless the user has turned checking off — then only "Check now" asks.
-  useEffect(() => {
-    if (settings?.updateChecks && !feed) void check();
-  }, [settings?.updateChecks, feed, check]);
-
   // The app menu's Check for Updates… arrives with ?check=1: check now, once,
   // and drop the flag so a reload doesn't check again.
   const [params, setParams] = useSearchParams();
+
+  // Opening the page loads the list if this device has none stored, or the
+  // stored one is over a day old (the weekly check can leave it a release
+  // behind), unless the user has turned checking off — then only "Check now"
+  // asks. Once per visit, so a failed fetch doesn't retry in a loop.
+  const checkedOnOpen = useRef(false);
+  useEffect(() => {
+    if (!settings?.updateChecks || checkedOnOpen.current) return;
+    checkedOnOpen.current = true;
+    if (params.get('check') !== '1' && feedIsStale(useUpdates.getState().feed))
+      void check();
+  }, [settings?.updateChecks, params, check]);
+
   useEffect(() => {
     if (params.get('check') !== '1') return;
     void check(true);
@@ -122,16 +140,12 @@ export default function AboutSettings() {
       <SettingsCard title="Version" contentClassName="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
+            {/* The version reads as code, set apart from the name. */}
             <p className="text-lg font-semibold">
               DomBot{' '}
-              {/* A dev build's commit reads as code, set apart from the name. */}
-              {current && isDevVersion(current) ? (
-                <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[15px] font-medium">
-                  {current}
-                </span>
-              ) : (
-                (current ?? '…')
-              )}
+              <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[15px] font-medium">
+                {current ?? '…'}
+              </span>
               {appInfo && (
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
                   {isDemo()
@@ -222,6 +236,32 @@ export default function AboutSettings() {
             onCheckedChange={(v) => void setUpdateChecks(v)}
           />
         </div>
+
+        {/* Desktop only: what to send with a bug report. On macOS it's also
+            Help → Show Error Log; Windows has no menu bar. */}
+        {appInfo?.logFile && (
+          <div className="border-t pt-4">
+            <p className="text-sm font-medium">Error Log</p>
+            <p className="mt-0.5 text-[13px] text-muted-foreground">
+              Errors and warnings, such as a failed sync, with API keys and
+              passwords removed.
+            </p>
+            {/* The path in the version's code pill, the reveal beside it. */}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="min-w-0 select-text break-all rounded-md bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
+                {appInfo.logFile}
+              </span>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => void window.api.showLogFile()}
+              >
+                <FolderOpen />
+                {REVEAL_LABEL[appInfo.platform] ?? 'Show in Folder'}
+              </Button>
+            </div>
+          </div>
+        )}
       </SettingsCard>
 
       <SettingsCard title="About DomBot" contentClassName="flex flex-col gap-3">
