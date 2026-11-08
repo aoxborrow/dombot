@@ -15,6 +15,10 @@ bulk writes, MCP). Each market's own API, quirks and client are in its plan:
 - [dynadot-marketplace-api.md](dynadot-marketplace-api.md): reads built, on the
   Dynadot registrar account's key; sells names held at Dynadot and at
   other registrars.
+- [sellerhub-api.md](sellerhub-api.md): Spaceship SellerHub, client and
+  adapter built (`src/core/markets/spaceship/`,
+  `src/core/services/markets/spaceship.ts`) on the Spaceship registrar
+  account's key; reads verified live, writes not yet.
 
 Atom's and Sedo's plans each proposed a first cut of shared types. This doc
 replaces both; where they disagreed, the choice and the reason are below.
@@ -913,8 +917,9 @@ a person (a sale message) says so in its description.
 5. **Ownership verification** for every market: settings, Apply and Request
    built; choosing a method when listing and tracking come next (see
    Ownership verification, "Build order").
-6. **Spaceship SellerHub** (planned): on the Spaceship registrar account's
-   key, as Dynadot's market is on Dynadot's; see docs/sellerhub-api.md.
+6. **Spaceship SellerHub** (built, reads verified live): on the Spaceship
+   registrar account's key, as Dynadot's market is on Dynadot's; see
+   docs/sellerhub-api.md.
 
 ## Open questions
 

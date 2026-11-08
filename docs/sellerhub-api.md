@@ -8,9 +8,33 @@ spec is embedded in the page as `__redoc_state`, which is the easiest way
 to read the schemas). Spaceship's release notes for SellerHub are at
 <https://www.spaceship.com/blog/sellerhub-updates/>.
 
-**Status: planned, nothing built.** Written from the spec and Spaceship's
-pages (2026-11-03), with a few live reads on the key in `.env`
-(2026-11-07, "Credentials" and "Ownership verification").
+## Status
+
+Built on #254's registrar-backed accounts, and verified live for reads
+(2026-11-07) on the account in `.env`: all 54 of its listings, the sold
+report (empty) and the verification record. Writes are unit-tested only;
+the live round trip waits for a go-ahead on a test name.
+
+- **Client** `src/core/markets/spaceship/`: listings (list, get, create,
+  update, delete), the sold report with its cursor, the verification
+  records, and the registrar's domain list on the same key. Headers carry
+  the key, problem+json errors become `SpaceshipError` (403 says which
+  scopes to add), reads retry, writes go once, and every call waits on a
+  60-a-minute limiter keyed by the registrar account.
+- **Adapter** `src/core/services/markets/spaceship.ts`, registered in
+  `registry.ts` with `registrar: 'spaceship'`: listings with `held` and
+  the description, sales with the exact commission, writes that read the
+  listing first, delist by delete, and `verificationId()`.
+- **Settings:** the Spaceship market picks a Spaceship registrar account,
+  as Dynadot's does; the card shows the registrar account's box and the
+  Ownership Verification ID, which sync fills in.
+- **MCP:** `spaceship` in every market enum, and a `spaceship`
+  (`description`) setting on the listing tools.
+- **Demo:** a Spaceship account on the demo's Spaceship registrar account,
+  with 34 listings (a few pending verification) and a recent sale.
+- **Live tests:** `client.live.test.ts` (reads, passing) and
+  `client.writes.live.test.ts` (behind `SPACESHIP_LIVE_WRITES=1` and
+  `SPACESHIP_TEST_DOMAIN`, not run yet).
 
 SellerHub runs on the Spaceship registrar's API with the same key and
 secret, given the `sellerhub:*` scopes. So it's a registrar-backed market
@@ -99,6 +123,21 @@ Listing statuses, from the spec:
   Management", "External API: Lease-to-Own Management" and "Improvement to
   external domain verification".
 
+### Observed (live reads, 2026-11-07)
+
+On the account in `.env`, reads only:
+
+- **Listings:** 54, all `onSale`, one page with `total: 54`. Every one has a
+  `displayName`, equal to `unicodeName` (the seller set no capitals), so
+  DomBot shows one only when it differs. 53 have Buy It Now on; one has it
+  off with offers on. 36 keep a `minPrice` with Make an Offer off.
+- **Held:** one of the 54 is in the Spaceship account itself (the
+  registrar's domain list, same key); 53 are held elsewhere.
+- **Sold report:** empty, with no `cursor`.
+- **Verification records:** one option, a TXT record at `@` holding a
+  UUID; no A/AAAA option.
+- **Errors:** a name that isn't listed answers 404.
+
 ## What to implement
 
 ### Implement
@@ -166,10 +205,9 @@ them as built; `registrar: 'spaceship'` on its `MarketInfo` turns them on.
 - **The cards link one way.** The market card shows the registrar account
   in a box (its logo and name) that opens its card in Settings → Registrars
   (`?tab=registrars&account=<id>`). The registrar card doesn't point back
-  yet, and removing a registrar account doesn't ask about the market
-  account: the market card then says the registrar account is gone. Both
-  are left open for every registrar-backed market (#254, "Phases"), not
-  built here.
+  yet (open for every registrar-backed market). Removing a registrar
+  account removes the market accounts on its key with it, and its
+  confirmation names them (#254).
 - **Scopes decide access,** which is where Spaceship differs from Dynadot,
   whose keys have none. A key without SellerHub's scopes gets 403 from
   `/v1/sellerhub`; the account test says so and points at Spaceship's API
@@ -195,10 +233,11 @@ them as built; `registrar: 'spaceship'` on its `MarketInfo` turns them on.
 
 Rate limits are per user and per operation. Whether SellerHub calls and
 registrar calls on the same key share a budget is unknown (open question 7);
-the market client paces itself at 60 a minute regardless. Dynadot plans one
-limiter for a key's registrar and market calls (not built yet); SellerHub
-needs it less, since its limits are per operation and the registrar's bulk
-lane already spaces Spaceship calls 2 seconds apart.
+the market client paces itself at 60 a minute regardless. #254 gives a
+Dynadot key one limiter for its registrar and market calls, since Dynadot
+answers a second call in flight with a 429. SellerHub doesn't share one:
+its limits are per operation, and the registrar's bulk lane already spaces
+Spaceship calls 2 seconds apart.
 
 ## What it means for DomBot
 
@@ -211,22 +250,26 @@ registrar account's API key, which needs SellerHub access."
 
 ### Listings
 
-| `MarketListing`                           | From SellerHub                                                |
-| ----------------------------------------- | ------------------------------------------------------------- |
-| `name`                                    | `name` (A-label)                                              |
-| `displayName`                             | `displayName`, else `unicodeName` when it differs from `name` |
-| `status`                                  | the table above; `statusRaw` is SellerHub's word              |
-| `forSale`                                 | `status === 'onSale'`                                         |
-| `price`                                   | `binPrice` when `binPriceEnabled`, else null                  |
-| `buyNow`                                  | `binPriceEnabled`                                             |
-| `minOffer`                                | `minPrice` when `minPriceEnabled`, else null                  |
-| `floor`, `discount`, `leaseToOwn`, `tier` | null: not in the API                                          |
-| `currency`                                | `USD`                                                         |
-| `listedAt`, `updatedAt`                   | null: not in the API                                          |
-| `extra`                                   | `{ market: 'spaceship', held, description }`                  |
+| `MarketListing`                           | From SellerHub                                                                                 |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `name`                                    | `name` (A-label)                                                                               |
+| `displayName`                             | `displayName` when it isn't just `unicodeName`, else `unicodeName` when it differs from `name` |
+| `status`                                  | the table above; `statusRaw` is SellerHub's word                                               |
+| `forSale`                                 | `status === 'onSale'`                                                                          |
+| `price`                                   | `binPrice` when `binPriceEnabled`, else null                                                   |
+| `buyNow`                                  | `binPriceEnabled`                                                                              |
+| `minOffer`                                | `minPrice` when `minPriceEnabled`, else null                                                   |
+| `floor`, `discount`, `leaseToOwn`, `tier` | null: not in the API                                                                           |
+| `currency`                                | `USD`                                                                                          |
+| `listedAt`, `updatedAt`                   | null: not in the API                                                                           |
+| `extra`                                   | `{ market: 'spaceship', held, description }`                                                   |
 
 Writes, one name per call through the bulk runner (`writeBatch: 1`, market
-jobs above 10 names, as for Atom):
+jobs above 10 names, as for Atom). Each reads the listing first: that says
+whether to create or change it, and a listing a sale or deal holds
+(`saleProcessing`, `privateSale`, `leaseActive`) or one that has sold is
+left alone. The write answers with the listing as saved, so there's no read
+back.
 
 - **New listing:** `POST /domains` with the Unicode name, `binPrice` and
   `binPriceEnabled: true` when a price is given, `minPrice` and
@@ -234,7 +277,9 @@ jobs above 10 names, as for Atom):
   name and description when set.
 - **Change:** `PATCH` with only what changed. `price: null` turns Buy It Now
   off and `minOffer: null` turns Make an Offer off; SellerHub keeps the old
-  amounts. A saved listing that differs from the request goes in `adjusted`.
+  amounts. A listing has to keep one of the two on (none of the 54 live
+  ones has both off). A saved price that differs from the request goes in
+  `adjusted`.
 - **`forSale: false`** is refused with "SellerHub's API can't pause a sale;
   delist instead". Nothing in the API stops or restarts one.
 - **Floor, discount, lease-to-own, a currency other than USD:** refused
@@ -292,8 +337,7 @@ registrar side, but handing the code to Spaceship stays in SellerHub.
 - **No Recheck ownership.** The API has no "check now" (`verifyDns` is
   false), so the check is SellerHub's background one, or the user's own
   click on **Verify Domains** in the SellerHub dashboard. A name sitting in
-  `verifying` says so in its listing cell and points at that button. The
-  listing goes to `onSale` when the check passes.
+  `verifying` shows as pending, and goes to `onSale` when the check passes.
 - **No delist and list again to force a check.** It would start a new one,
   but may cost the listing its leads and checkout links (open question 4).
   DomBot doesn't do it on its own.
@@ -307,9 +351,11 @@ registrar side, but handing the code to Spaceship stays in SellerHub.
 
 ### Reporting and the demo
 
-No traffic, so no SellerHub stats in Reporting. The demo gets a SellerHub
+No traffic, so no SellerHub stats in Reporting. The demo has a SellerHub
 account linked to its fake Spaceship registrar account
-(`src/core/demo/markets.ts`), with listings in each status and a few sales.
+(`src/core/demo/markets.ts`): a fifth of the priced names, some held by
+that account and some elsewhere, a few still pending verification, and a
+recent sale. A new listing of a name held elsewhere starts pending.
 
 ### Capabilities
 
@@ -356,23 +402,21 @@ name held at Spaceship, for the internal path, needs the user's pick.
 
 ## Phases
 
-Registrar-backed accounts come with Dynadot (#254), so SellerHub starts
-after it merges.
+Built on #254's branch, so this PR merges after it.
 
-1. **Read side:** client (auth, problem+json errors, paging, cursor, the
+1. **Read side (built, verified live):** client (auth, problem+json errors, paging, cursor, the
    context's `fetch`, a limiter keyed by the registrar account), adapter
    with `held` and `verificationId()`, registry entry on the `spaceship`
    registrar, listings and sales sync, `sold` events, the scope message, the
    verification entry, demo account. Live reads.
-2. **Writes:** list, reprice, minimum offer, display name, description,
-   delist, through the List and Delist dialog, the bulk runner and the MCP
-   listing tools. Live round trip on one test name.
+2. **Writes (built):** list, reprice, minimum offer, display name,
+   description, delist, through the List and Delist dialog, the bulk runner
+   and the MCP listing tools. Next: the live round trip on one test name.
 3. **Later:** lease-to-own and For Sale page settings, when Spaceship's API
    has them.
 
-Not here, open for every registrar-backed market: the registrar card
-pointing back, the remove-both prompt, and one limiter for a key's
-registrar and market calls.
+Not here: the registrar card pointing back, open for every
+registrar-backed market.
 
 ## Open questions
 
@@ -383,9 +427,11 @@ registrar and market calls.
    is. Still open: whether it can write, and whether a key without the
    scopes can be given them or has to be replaced (and the registrar card
    updated).
-3. With Buy It Now off, does the For Sale page still show `binPrice`? Can
-   Make an Offer be on without a minimum (`minPriceEnabled: false`), or does
-   that turn offers off?
+3. Answered in part (2026-11-07): SellerHub keeps both amounts while their
+   switches are off (36 of 54 live listings have a minimum with Make an
+   Offer off), and no listing has both off. Still open: does the For Sale
+   page show a `binPrice` whose switch is off, and does
+   `minPriceEnabled: false` mean no offers at all?
 4. Does deleting a listing with an open lead or checkout link cancel them?
    Is there any API path to `onSaleStopped` and back?
 5. After a sale of an external name, what does Spaceship need: a transfer
