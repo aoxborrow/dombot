@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  reconcileSelection,
   changeSelection,
+  reconcileSelection,
   type TableSelectionState,
 } from './table-selection';
 
@@ -11,76 +11,69 @@ const state = (
   picked = ['domain-1', 'domain-75'],
 ): TableSelectionState => ({ scope, selected: new Set(picked) });
 
-describe('table selection boundaries', () => {
-  it('drops the 689 hidden selections before a filtered row can be acted on', () => {
-    const old = state(
-      'all',
-      Array.from({ length: 689 }, (_, i) => `hidden-${i}`),
-    );
-    const next = reconcileSelection(old, 'filtered', new Set(['one.invalid']));
-    expect([...next.selected]).toEqual([]);
-    const selected = new Set(next.selected).add('one.invalid');
-    expect([...selected]).toEqual(['one.invalid']);
+describe('reconcileSelection', () => {
+  it('starts empty when the scope changes, even if the rows still match', () => {
+    const next = reconcileSelection(state('owned'), 'owned+search', keys);
+    expect(next.scope).toBe('owned+search');
+    expect(next.selected.size).toBe(0);
   });
 
-  it.each([
-    'search',
-    'registrar',
-    'folder',
-    'auto-renew',
-    'pricing',
-    'dates',
-    'owned/archive',
-    'activity type',
-  ])(
-    'clears selection when the %s scope changes even if rows still match',
-    (filter) => {
-      expect(reconcileSelection(state(), filter, keys).selected.size).toBe(0);
-    },
-  );
+  it('keeps only names in the current result, so hidden ones are never targets', () => {
+    const everything = state('owned', [...keys]);
+    const next = reconcileSelection(everything, 'owned', new Set(['domain-3']));
+    expect([...next.selected]).toEqual(['domain-3']);
+  });
 
-  it('preserves deliberate cross-page selection and sorting within one result', () => {
+  it('keeps the same object within one scope, across pages and sort orders', () => {
     const previous = state();
     expect(reconcileSelection(previous, 'owned', keys)).toBe(previous);
     expect(
       reconcileSelection(previous, 'owned', new Set([...keys].reverse())),
     ).toBe(previous);
-    expect([...previous.selected]).toEqual(['domain-1', 'domain-75']);
   });
 
-  it('clears on navigation and does not resurrect when returning', () => {
-    const left = reconcileSelection(state(), 'renewals-visit', keys);
-    const returned = reconcileSelection(left, 'owned-new-visit', keys);
-    expect(returned.selected.size).toBe(0);
-  });
-
-  it('prunes removed rows and never restores them after a refresh', () => {
+  it('prunes rows that leave the result and does not bring them back', () => {
     const pruned = reconcileSelection(state(), 'owned', new Set(['domain-1']));
     expect([...pruned.selected]).toEqual(['domain-1']);
     expect([...reconcileSelection(pruned, 'owned', keys).selected]).toEqual([
       'domain-1',
     ]);
   });
+
+  it('does not restore a selection after leaving and coming back', () => {
+    const left = reconcileSelection(state(), 'visit-2', keys);
+    const returned = reconcileSelection(left, 'visit-3', keys);
+    expect(returned.selected.size).toBe(0);
+  });
 });
 
-it('ignores completion of a bulk request from a previous filter or visit', () => {
-  const current = state('new-filter', ['domain-75']);
-  expect(
-    changeSelection(current, 'old-filter', keys, ['domain-1'], false),
-  ).toBe(current);
-  expect([...current.selected]).toEqual(['domain-75']);
-});
-it('adds only matching rows and removes only the requested selection', () => {
-  const current = state();
-  const added = changeSelection(
-    current,
-    'owned',
-    keys,
-    ['domain-5', 'hidden'],
-    true,
-  );
-  expect([...added.selected]).toEqual(['domain-1', 'domain-75', 'domain-5']);
-  expect([
-    ...changeSelection(added, 'owned', keys, ['domain-1'], false).selected,
-  ]).toEqual(['domain-75', 'domain-5']);
+describe('changeSelection', () => {
+  it('ignores a late change from an earlier scope', () => {
+    const current = state('new-filter', ['domain-75']);
+    expect(
+      changeSelection(current, 'old-filter', keys, ['domain-1'], false),
+    ).toBe(current);
+  });
+
+  it('adds only rows in the result and removes only the named ones', () => {
+    const added = changeSelection(
+      state(),
+      'owned',
+      keys,
+      ['domain-5', 'hidden'],
+      true,
+    );
+    expect([...added.selected]).toEqual(['domain-1', 'domain-75', 'domain-5']);
+    expect([
+      ...changeSelection(added, 'owned', keys, ['domain-1'], false).selected,
+    ]).toEqual(['domain-75', 'domain-5']);
+  });
+
+  it('a late removal with older keys keeps rows selected since', () => {
+    // domain-200 joined the result (a sync) and was selected after the
+    // folder move began; the move's completion still holds the old keys.
+    const current = state('owned', ['domain-1', 'domain-200']);
+    const next = changeSelection(current, 'owned', keys, ['domain-1'], false);
+    expect([...next.selected]).toEqual(['domain-200']);
+  });
 });

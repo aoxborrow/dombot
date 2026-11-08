@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 export interface TableSelectionState {
   scope: string;
@@ -20,7 +20,9 @@ export function reconcileSelection(
   };
 }
 
-/** A completion from an earlier result must not change the current selection. */
+/** A completion from an earlier result must not change the current selection.
+ *  `keys` may be from an earlier render (a late removal), so only adds check
+ *  it; rows that left the result are pruned at render, against current keys. */
 export function changeSelection(
   previous: TableSelectionState,
   scope: string,
@@ -29,7 +31,7 @@ export function changeSelection(
   on: boolean,
 ): TableSelectionState {
   if (previous.scope !== scope) return previous;
-  const selected = new Set(reconcileSelection(previous, scope, keys).selected);
+  const selected = new Set(previous.selected);
   for (const key of targets) {
     if (on && keys.has(key)) selected.add(key);
     else selected.delete(key);
@@ -37,9 +39,10 @@ export function changeSelection(
   return { scope, selected };
 }
 
-/** Page-local selection shared by the checkboxes and every bulk action. */
+/** Page-local selection shared by the checkboxes and every bulk action.
+ *  Pass a memoized `rowKeys` so the key set isn't rebuilt every render. */
 export function useTableSelection(scope: string, rowKeys: string[]) {
-  const keys = new Set(rowKeys);
+  const keys = useMemo(() => new Set(rowKeys), [rowKeys]);
   const [stored, setStored] = useState<TableSelectionState>(() => ({
     scope,
     selected: new Set(),
