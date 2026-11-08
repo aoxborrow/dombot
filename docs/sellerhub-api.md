@@ -80,9 +80,14 @@ Listing statuses, from the spec:
   and lease-to-own agreements stay at 5%; SafePay paid by Bitcoin or wire is
   3% (May 2026). Buyer and seller can split it. The sold report's `payout`
   makes DomBot's commission exact, so none of these rates need to be coded.
-- **External names** (held at other registrars or other Spaceship accounts)
-  need ownership verification, once per listing (a Spaceship rep on
-  NamePros). Names in the same Spaceship account don't.
+- **External names** (held at other registrars, or since December 2025 in
+  other Spaceship accounts) need ownership verification. Names in the same
+  Spaceship account don't. The check is once per listing: changing a
+  listing's settings later doesn't trigger another, but a name delisted and
+  added again is checked again (Spaceship's rep and users on NamePros).
+- **Checking now:** SellerHub checks in the background, and since August
+  2025 its dashboard has a **Verify Domains** button that checks on the
+  spot. The API has nothing like it.
 - **Payout** happens when the name reaches Spaceship, not the buyer. Names
   already at Spaceship move internally.
 - **The dashboard has more than the API:** statistics (views, visitor
@@ -91,7 +96,8 @@ Listing statuses, from the spec:
   Offer, Contact Owner, Seller Portfolio link), Quality Offer deposits,
   payouts, and CSV exports of most tabs.
 - **Roadmap** (upcoming, no dates): "External API: For Sale Page
-  Management" and "External API: Lease-to-Own Management".
+  Management", "External API: Lease-to-Own Management" and "Improvement to
+  external domain verification".
 
 ## What to implement
 
@@ -137,7 +143,8 @@ price, no discounts or tiers, no traffic or stats, no leads, offers or
 messages, no lease-to-own terms, no sale ids, buyers or kinds (only the
 channel: `spaceshipSearch`, `forSalePage`, `checkoutLink`, …), no payout
 dates, no way to stop or restart a sale short of deleting it, no "check
-ownership now", no bulk, and no account settings. Checkout links can be
+ownership now" (the dashboard's Verify Domains), no bulk, and no account
+settings. Checkout links can be
 created but not listed or deactivated.
 
 ## Credentials: borrowing the Spaceship registrar key
@@ -261,9 +268,17 @@ registrar side, but handing the code to Spaceship stays in SellerHub.
   apply them (TXT only, as for every market).
 - **Ownership verification TXT…** works unchanged with that value, and is
   skipped for names the linked registrar account holds.
-- **No Recheck ownership.** There's no "check now" endpoint (`verifyDns:
-false`); SellerHub checks on its own and the listing goes from
-  `verifying` to `onSale`.
+- **No Recheck ownership.** The API has no "check now" (`verifyDns` is
+  false), so the check is SellerHub's background one, or the user's own
+  click on **Verify Domains** in the SellerHub dashboard. A name sitting in
+  `verifying` says so in its listing cell and points at that button. The
+  listing goes to `onSale` when the check passes.
+- **No delist and list again to force a check.** It would start a new one,
+  but may cost the listing its leads and checkout links (open question 4).
+  DomBot doesn't do it on its own.
+- **The record stays.** A name delisted and added again is checked again,
+  and nobody official has said whether a verified listing survives the
+  record being removed (open question 10). DomBot never removes it.
 - **No market nameservers.** Nothing in the API asks for them. The For Sale
   page looks like a connection on Spaceship's own DNS (the release notes
   talk of "removing connections (e.g. URL redirects)" when sale pages are
@@ -356,4 +371,7 @@ name held at Spaceship, for the internal path, needs the user's pick.
    calls share them?
 8. How is a description cleared: an empty string, or `null`?
 9. Does create answer `verifying` for an external name and `onSale` for one
-   in the same account, and how long does verifying take?
+   in the same account? Does create check right away, the way Verify Domains
+   does, and how often does the background check run after that?
+10. Once a listing is verified, can the record be removed, or does
+    SellerHub check again and take the listing down?
