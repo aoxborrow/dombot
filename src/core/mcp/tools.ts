@@ -687,13 +687,18 @@ function localWrite<T>(result: T) {
 
 /** The normalized name, or an error when DomBot doesn't know it: not synced,
  *  not imported, and with no history. */
-function assertInPortfolio(domain: string): string {
-  const key = assertDomainName(domain);
-  const known =
+/** Whether DomBot knows `key`: a registrar holds it, you imported it, or it has history. */
+function inPortfolio(key: string): boolean {
+  return (
     getMergedPortfolio().domains.some((d) => toAscii(d.domainName) === key) ||
     Object.hasOwn(getImportedDomains(), key) ||
-    eventsFor(key).length > 0;
-  if (!known) {
+    eventsFor(key).length > 0
+  );
+}
+
+function assertInPortfolio(domain: string): string {
+  const key = assertDomainName(domain);
+  if (!inPortfolio(key)) {
     throw new Error(
       `"${domain}" isn't in your portfolio. Run portfolio_sync if it was added recently.`,
     );
@@ -1368,7 +1373,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Import asking prices from market listings',
       description:
-        'Copy what a marketplace lists names for — its BIN price, minimum offer and floor — into your DomBot asking prices (the app’s "Price from listings"), so you can price in DomBot from then on and push them out with market_listings_set. `source` is one market, or `highest` for whichever listing is highest (BIN, then minimum offer, then floor, compared in USD). The winning listing sets the BIN price and currency; a minimum offer or floor it lacks is filled from the name’s other listings (the highest not above the BIN price). Amounts are rounded to whole amounts; a minimum offer or floor above the BIN price is dropped. Names that already have an asking price keep it unless `replace` is true. Reads the listings DomBot last synced (run market_sync first for fresh ones). DomBot-local — no marketplace call.',
+        'Copy what a marketplace lists names for — its BIN price, minimum offer and floor — into your DomBot asking prices (the app’s "Price from listings"), so you can price in DomBot from then on and push them out with market_listings_set. `source` is one market, or `highest` for whichever listing is highest (BIN, then minimum offer, then floor, compared in USD). The winning listing sets the BIN price and currency; a minimum offer or floor it lacks is filled from the name’s other listings (the highest not above the BIN price). Amounts are rounded to whole amounts; a minimum offer or floor above the BIN price is dropped. Names that already have an asking price keep it unless `replace` is true. Only names in your portfolio (registrar, imported or in history) get a price, as in the app; a market listing for a name DomBot doesn’t otherwise know is counted in `notInPortfolio`, not imported. Reads the listings DomBot last synced (run market_sync first for fresh ones). DomBot-local — no marketplace call.',
       inputSchema: {
         domains: z
           .array(z.string())
@@ -1376,7 +1381,7 @@ export function registerTools(server: McpServer): void {
           .max(5000)
           .optional()
           .describe(
-            'The names to import for. Omit for every name with a listed price.',
+            'The names to import for, each in your portfolio. Omit for every portfolio name with a listed price.',
           ),
         source: z
           .enum(['highest', 'afternic', 'atom', 'dynadot', 'sedo', 'spaceship'])
@@ -1395,9 +1400,13 @@ export function registerTools(server: McpServer): void {
         const key = toAscii(l.name);
         byName.set(key, [...(byName.get(key) ?? []), l]);
       }
+      // Portfolio names only, like the app's dialog: a name known only from
+      // a listing has no row to show its asking price on.
+      const listedKeys = [...byName.keys()];
       const keys = names
         ? [...new Set(names.map(assertInPortfolio))]
-        : [...byName.keys()];
+        : listedKeys.filter(inPortfolio);
+      const notInPortfolio = names ? 0 : listedKeys.length - keys.length;
       const rates = exchangeRates();
       const current = getListPrices();
       const imported: { domain: string; market: string }[] = [];
@@ -1440,6 +1449,7 @@ export function registerTools(server: McpServer): void {
         })),
         kept,
         notListed: unlisted,
+        notInPortfolio,
       });
     },
   );

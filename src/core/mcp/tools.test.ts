@@ -996,10 +996,18 @@ describe('local write tools', () => {
       currency: 'USD',
       ...over,
     });
+    getMergedPortfolio.mockReturnValue({
+      domains: [{ domainName: 'a.com' }, { domainName: 'b.com' }],
+      fetchedAt: 0,
+      registrars: [],
+      errors: [],
+    });
     marketListings.mockReturnValue([
       listing({ name: 'a.com' }),
       listing({ name: 'a.com', market: 'sedo', price: '3000', minOffer: null }),
       listing({ name: 'b.com', price: '900' }),
+      // Listed, but no registrar holds it: not in the portfolio.
+      listing({ name: 'elsewhere.com', price: '700' }),
     ]);
     getListPrices.mockReturnValue({
       'b.com': { amount: '500', currency: 'USD', updatedAt: 1 },
@@ -1007,6 +1015,7 @@ describe('local write tools', () => {
     const result = (await call('portfolio_asking_prices_import', {})) as {
       imported: { domain: string; market: string }[];
       kept: string[];
+      notInPortfolio: number;
     };
     expect(setListPrices).toHaveBeenCalledWith([
       {
@@ -1019,6 +1028,10 @@ describe('local write tools', () => {
     ]);
     expect(result.imported.map((r) => r.market)).toEqual(['sedo']);
     expect(result.kept).toEqual(['b.com']);
+    expect(result.notInPortfolio).toBe(1);
+    await expect(
+      call('portfolio_asking_prices_import', { domains: ['elsewhere.com'] }),
+    ).rejects.toThrow(/isn't in your portfolio/);
 
     setListPrices.mockClear();
     await call('portfolio_asking_prices_import', {

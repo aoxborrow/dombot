@@ -151,9 +151,10 @@ portfolio: synced, imported, or with history.
   `currency?`. Replaces the asking price: what's left out is cleared, and all
   three left out removes it. `currency` is required unless clearing. Returns
   `{ domain, askingPrice }`.
-- **`portfolio_asking_prices_import`** — `domains?` (default: every name
+- **`portfolio_asking_prices_import`** — `domains?` (default: every portfolio name
   with a listed price), `source?` (`highest`, the default, or a market id),
-  `replace?` (default `false`). Copies a market listing's BIN price, minimum
+  `replace?` (default `false`). Portfolio names only, as in the app;
+  listings for other names are counted in `notInPortfolio`. Copies a market listing's BIN price, minimum
   offer and floor into the asking price, as the app's Price from listings
   does: `highest` takes the highest listing (BIN, then minimum offer, then
   floor, in USD) for the BIN price and currency, a minimum offer or floor it
