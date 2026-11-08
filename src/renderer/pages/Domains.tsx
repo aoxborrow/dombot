@@ -1,4 +1,3 @@
-import { useTableSelection } from '../lib/table-selection';
 import { accountNumber, accountTitle } from '../../shared/account-label';
 import { syncProblems } from '../lib/activity';
 import { multiAccountRegistrars } from '../lib/registrar-accounts';
@@ -152,6 +151,7 @@ import {
 } from '../components/domains/BulkActionsBar';
 import { BulkActionDialog } from '../components/domains/BulkActionDialog';
 import { defaultBulkOp } from '../lib/bulk';
+import { useTableSelection } from '../lib/table-selection';
 import {
   EXPIRATION_PRESETS,
   isDateRangeSet,
@@ -2118,12 +2118,13 @@ export default function Domains() {
     purchased,
     sold,
   ]);
+  const filteredKeys = useMemo(() => filtered.map(domainKey), [filtered]);
   const {
     selected,
     toggle: toggleSelected,
     setMany: setSelectedMany,
     clear: clearSelection,
-  } = useTableSelection(selectionScope, filtered.map(domainKey));
+  } = useTableSelection(selectionScope, filteredKeys);
   useEffect(() => {
     setListPriceFor(null);
     setBulkNotesFor(null);
@@ -2135,7 +2136,10 @@ export default function Domains() {
   }, [selectionScope]);
   // Every bulk action uses exactly the checked names in the current result,
   // including deliberate selections on its other pages.
-  const selectedDomains = filtered.filter((d) => selected.has(domainKey(d)));
+  const selectedDomains = useMemo(
+    () => filtered.filter((d) => selected.has(domainKey(d))),
+    [filtered, selected],
+  );
 
   // Bulk: re-fetch every selected domain's detail from its registrar, bypassing
   // the detail cache (their cells show skeletons while in flight).
@@ -2674,7 +2678,7 @@ export default function Domains() {
           selected,
           toggle: toggleSelected,
           setMany: setSelectedMany,
-          allLabel: `Select all ${filtered.length} matching domains across pages`,
+          allLabel: 'Select all domains',
           rowLabel: (d) => `Select ${d.domainName}`,
         }}
         empty={

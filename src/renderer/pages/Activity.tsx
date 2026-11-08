@@ -1,4 +1,3 @@
-import { useTableSelection } from '../lib/table-selection';
 import {
   useEffect,
   useMemo,
@@ -92,6 +91,7 @@ import {
   withinDays,
 } from '../lib/activity';
 import { usePreferences } from '../lib/preferences';
+import { useTableSelection } from '../lib/table-selection';
 import {
   feeError,
   registrationDay,
@@ -464,6 +464,7 @@ export default function Activity() {
     setPage(0);
   };
 
+  const rowIds = useMemo(() => rows.map((row) => row.event.id), [rows]);
   const {
     selected,
     toggle,
@@ -482,7 +483,7 @@ export default function Activity() {
       accounts,
       days,
     ]),
-    rows.map((row) => row.event.id),
+    rowIds,
   );
   useEffect(
     () => setDialog(null),
@@ -1117,7 +1118,7 @@ export default function Activity() {
           selected,
           toggle,
           setMany,
-          allLabel: `Select all ${rows.length} matching activity rows across pages`,
+          allLabel: 'Select all activity',
           rowLabel: (r) =>
             `Select ${toUnicode(r.event.domain)} ${VERB[r.shown.type]}`,
         }}
