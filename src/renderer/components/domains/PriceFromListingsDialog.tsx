@@ -240,7 +240,7 @@ export function PriceFromListingsDialog({
             </p>
           )}
           {one ? (
-            !single && <p>Not listed with a price on {where}.</p>
+            !single && <p>Not listed on {where}.</p>
           ) : (
             <>
               {priced > 0 && (
@@ -259,7 +259,7 @@ export function PriceFromListingsDialog({
                   : 'Nothing to import for this selection.'}
                 {[
                   plan.unlisted &&
-                    `${names(plan.unlisted)} not listed with a price${source === 'highest' ? '' : ' there'}`,
+                    `${names(plan.unlisted)} not listed${source === 'highest' ? '' : ' there'}`,
                   plan.kept && `${names(plan.kept)} keeping the price you set`,
                   plan.same && `${names(plan.same)} already at that price`,
                 ]
