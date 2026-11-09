@@ -5,10 +5,8 @@ import { reportsPrivacy, reportsLock, unsupportedReason } from './domain-ops';
 import { registrarHostsDns } from './market-verification';
 import { usesPerNameQuote } from '../core/services/pricing';
 
-// The SDK provider is a separate pending release. Keep preparation testable
-// against the pinned catalog and rerun against the provider candidate as well.
-const namefi = 'namefi' as RegistrarName;
-describe('prepared Namefi integration', () => {
+const namefi: RegistrarName = 'namefi';
+describe('Namefi integration', () => {
   it('keeps credential setup and unreported security flags explicit', () => {
     expect(REGISTRAR_HELP.namefi.links[0].url).toBe(
       'https://namefi.io/api-keys',

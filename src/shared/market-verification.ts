@@ -165,7 +165,7 @@ export function verificationNameservers(
  * defaults, parking and premium DNS). A TXT record written at the registrar
  * only takes effect while the name uses one of them.
  */
-const REGISTRAR_DNS: Record<RegistrarName | 'namefi', readonly string[]> = {
+const REGISTRAR_DNS: Record<RegistrarName, readonly string[]> = {
   '101domain': ['101domain.com'],
   cloudflare: ['ns.cloudflare.com'],
   dynadot: ['dynadot.com', 'dyna-ns.net'],

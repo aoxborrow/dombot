@@ -52,7 +52,7 @@ import { RENEWAL_PRICES_NAMESPACE } from '../storage/names';
 const SPECIFIC_CAPABLE = new Set<RegistrarName>(['gandi', 'dynadot']);
 
 // Name.com and Namefi have no bundled base-rate table. Quote each owned name,
-// including legacy extensions, when its SDK provider is available.
+// including legacy extensions.
 const ALWAYS_QUOTE = new Set<string>(['namecom', 'namefi']);
 
 /**

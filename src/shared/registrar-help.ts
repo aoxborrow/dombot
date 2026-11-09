@@ -32,9 +32,8 @@ export interface RegistrarHelp {
 }
 
 // Exhaustive over RegistrarName so adding a registrar to the library forces a
-// help entry here (the build fails until one is written). Namefi is prepared for
-// its pending registrar-client provider release.
-export const REGISTRAR_HELP: Record<RegistrarName | 'namefi', RegistrarHelp> = {
+// help entry here (the build fails until one is written).
+export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {
   '101domain': {
     summary:
       'An API key from My Account › Developer Tools – API & MCP, with the ' +
