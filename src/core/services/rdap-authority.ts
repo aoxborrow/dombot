@@ -63,7 +63,7 @@ export async function rdapAuthorities(): Promise<Map<string, string>> {
   if (!cached || Date.now() - cached.fetchedAt >= DAY_MS) {
     try {
       const response = await fetch('https://data.iana.org/rdap/dns.json', {
-        redirect: 'error',
+        redirect: 'manual',
         signal: AbortSignal.timeout(10_000),
       });
       if (!response.ok) {

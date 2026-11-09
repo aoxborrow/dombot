@@ -138,7 +138,7 @@ async function queryRdap(
         ? new URL('domain/' + encodeURIComponent(name), authority).href
         : `https://${REDIRECTOR}/domain/${encodeURIComponent(name)}`,
       {
-        redirect: authority ? 'error' : 'follow',
+        redirect: authority ? 'manual' : 'follow',
         signal: AbortSignal.timeout(TIMEOUT_MS),
         headers: {
           accept: 'application/rdap+json, application/json',

@@ -32,11 +32,12 @@ const doc = () => ({
   ],
 });
 const mockFetch = (body = doc()) =>
-  vi.fn(async (url: string) =>
-    new URL(String(url)).hostname === 'data.iana.org'
+  vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.redirect === 'error') throw new TypeError('Unsupported by Workers');
+    return     new URL(String(url)).hostname === 'data.iana.org'
       ? Response.json({ services: [[['ai'], [registry]]] })
-      : Response.json(body),
-  );
+      : Response.json(body);
+  });
 beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-11-09T12:00:00Z'));
@@ -68,6 +69,7 @@ describe('verified registration creation recovery', () => {
     });
     expect(result).not.toHaveProperty('createdDateIssue');
     expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls.every(([, init]) => init?.redirect === 'manual')).toBe(true);
     expect(send.mock.calls.every(([url]) => new URL(String(url)).hostname !== 'rdap.org')).toBe(
       true,
     );
