@@ -743,16 +743,20 @@ async function performInventorySync(
         continue;
       const key = detailKey(accountId, domain.domainName);
       const cached = readEntry<DetailRecord>('detail', key)?.data;
+      // Inventory dates do not turn a pricing-only cache entry into a detail read.
+      const reconcileCreation =
+        cached != null && hasDetail(cached) && domain.createdDate != null;
       if (
         !cached ||
-        (sameDate(domain.createdDate, cached.createdDate) &&
+        ((!reconcileCreation ||
+          sameDate(domain.createdDate, cached.createdDate)) &&
           sameDate(domain.expirationDate, cached.expirationDate) &&
           sameDate(domain.renewalDate, cached.renewalDate))
       )
         continue;
       patchEntryData<DetailRecord>('detail', key, (detail) => ({
         ...detail,
-        ...(domain.createdDate != null
+        ...(reconcileCreation
           ? { createdDate: domain.createdDate, createdDateIssue: undefined }
           : {}),
         ...(domain.expirationDate != null
