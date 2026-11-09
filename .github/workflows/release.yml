@@ -90,11 +90,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-14, platform: mac, arch: arm64 } # Apple Silicon
+          - { os: macos-15, platform: mac, arch: arm64 } # Apple Silicon
           # Intel: cross-built on the arm64 runner (macos-13 Intel runners queue
           # unreliably and are being retired). Safe here — the app has no native
           # modules, so electron-forge just packages the x64 Electron.
-          - { os: macos-14, platform: mac, arch: x64 }
+          - { os: macos-15, platform: mac, arch: x64 }
           - { os: windows-latest, platform: win, arch: x64 }
           - { os: ubuntu-latest, platform: linux, arch: x64 }
     runs-on: ${{ matrix.os }}
