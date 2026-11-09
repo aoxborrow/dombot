@@ -68,8 +68,11 @@ export const DYNADOT_CAPABILITIES: MarketCapabilities = {
   rateLimit: 60,
 };
 
-/** None of its own: the account uses a Dynadot registrar account's key. */
-export const DYNADOT_CONFIG_FIELDS: MarketConfigField[] = [];
+/** For an account on its own key, not a Dynadot registrar account's. */
+export const DYNADOT_CONFIG_FIELDS: MarketConfigField[] = [
+  { name: 'apiKey', label: 'API Key', type: 'password', required: true },
+  { name: 'apiSecret', label: 'API Secret', type: 'password', required: true },
+];
 
 /** The other-registrar list shows every price in USD, converted (observed). */
 const LIST_CURRENCY = 'USD';
@@ -835,7 +838,7 @@ export class DynadotAdapter implements MarketAdapter {
   }
 }
 
-/** An adapter for a Dynadot market account, on its registrar account's key. */
+/** An adapter for a Dynadot market account. */
 export function createDynadotAdapter(
   accountId: string,
   credentials: DynadotAccountCredentials,
@@ -850,7 +853,7 @@ export function createDynadotAdapter(
   const { apiKey, apiSecret } = credentials;
   if (!apiKey || !apiSecret) {
     throw new Error(
-      'This Dynadot account’s registrar account has no API key and secret. Check Settings → Registrars.',
+      'This Dynadot account has no API key and secret. Check its registrar account in Settings → Registrars, or give it a separate key.',
     );
   }
   return new DynadotAdapter(

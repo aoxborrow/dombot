@@ -45,9 +45,9 @@ export function proxySecretValues(): string[] {
 /** The route for an account, or null for a direct connection. An account that
  * points at a missing profile fails loudly: it must never quietly go direct
  * from an address the registrar hasn't whitelisted. */
-export function accountProxyRoute(
-  account: RegistrarAccount,
-): ProxyRoute | null {
+export function accountProxyRoute(account: {
+  proxyId?: string | null;
+}): ProxyRoute | null {
   if (!account.proxyId) return null;
   const profile = getProxyProfile(account.proxyId);
   if (!profile)
@@ -55,6 +55,20 @@ export function accountProxyRoute(
       'This account uses the fixed IP proxy, but no proxy is configured. Add one in Settings → Proxy.',
     );
   return { url: profile.url, ip: profile.egressIp };
+}
+
+/** How the proxy reaches market accounts, set by their service (which
+ * imports this module). */
+interface MarketProxyUsers {
+  list(id: string): ProxySettings['marketUsers'];
+  clear(accountId: string): Promise<void>;
+}
+let marketProxyUsers: MarketProxyUsers = {
+  list: () => [],
+  clear: async () => {},
+};
+export function setMarketProxyUsers(users: MarketProxyUsers): void {
+  marketProxyUsers = users;
 }
 
 /** Saved accounts routed through a profile. */
@@ -85,6 +99,9 @@ export async function saveProxyProfile(
  * accounts fall back to a direct connection). */
 export async function removeProxyProfile(id = DEFAULT_PROXY_ID): Promise<void> {
   for (const user of proxyUsers(id)) await setAccountProxy(user.id, null);
+  for (const user of marketProxyUsers.list(id)) {
+    await marketProxyUsers.clear(user.accountId);
+  }
   await store.delete(id);
 }
 
@@ -158,6 +175,7 @@ export function getProxySettings(): ProxySettings {
           b.registrar === a.registrar && b.id !== a.id && isSavedAccount(b.id),
       ),
     })),
+    marketUsers: marketProxyUsers.list(DEFAULT_PROXY_ID),
   };
 }
 

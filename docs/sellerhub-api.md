@@ -220,10 +220,13 @@ them as built; `registrar: 'spaceship'` on its `MarketInfo` turns them on.
   its own and calls with the registrar account's key, through its proxy
   route when it has one, so a rotated key reaches it at once. The market
   card refuses a key change and points at Settings → Registrars.
-- **No separate key.** The build doesn't offer one, and SellerHub doesn't
-  need it: the key is the same either way, and a Spaceship account that
-  isn't connected yet is added as a registrar first, with nothing in it if
-  need be. (The first draft of this plan had a separate-key fallback.)
+- **Or a separate key (#275).** A key can carry SellerHub's scopes and not
+  the registrar's, so the account's API Key Source is either a Spaceship
+  registrar account or "Use a separate API key", which works with no
+  registrar account connected. An account on its own key has its own fixed
+  IP proxy switch, shares the rate limiter of a registrar account saved with
+  the same key, and may not be able to read the domain list; then `held` is
+  unknown on its listings. Either source can be switched on the card.
 - **The cards link one way.** The market card shows the registrar account
   in a box (its logo and name) that opens its card in Settings → Registrars
   (`?tab=registrars&account=<id>`). The registrar card doesn't point back

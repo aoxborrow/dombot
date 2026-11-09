@@ -91,6 +91,8 @@ export interface AfternicClientOptions {
   maxRetries?: number;
   /** Per-request timeout. Defaults to `API_TIMEOUT_MS`, 90 seconds. */
   timeoutMs?: number;
+  /** Listings a page in `allListings`. Defaults to 500, Afternic's most. */
+  listingsPage?: number;
 }
 
 interface RequestOptions {
@@ -137,11 +139,14 @@ export class AfternicClient {
   private readonly maxRetries: number;
   private readonly timeoutMs: number;
 
+  private readonly listingsPage: number;
+
   constructor(options: AfternicClientOptions) {
     if (!options.apiKey || !options.apiSecret) {
       throw new Error('Afternic needs both an API key and a secret.');
     }
     this.fetchImpl = options.fetch ?? ((...args) => fetch(...args));
+    this.listingsPage = options.listingsPage ?? LISTINGS_PAGE;
     this.baseUrl = (options.baseUrl ?? AFTERNIC_BASE_URL).replace(/\/+$/, '');
     this.auth = `sso-key ${options.apiKey}:${options.apiSecret}`;
     this.userAgent = options.userAgent
@@ -192,18 +197,18 @@ export class AfternicClient {
     const listings: AfternicListing[] = [];
     let firstTotal: number | null | undefined;
     let lastTotal: number | null = null;
-    for (let offset = 0; ; offset += LISTINGS_PAGE) {
+    for (let offset = 0; ; offset += this.listingsPage) {
       const page = await this.listListings({
         ...options,
         order: 'NAME_ASC',
-        limit: LISTINGS_PAGE,
+        limit: this.listingsPage,
         offset,
       });
       if (firstTotal === undefined) firstTotal = page.total;
       lastTotal = page.total;
       listings.push(...page.listings);
       const done =
-        page.listings.length < LISTINGS_PAGE ||
+        page.listings.length < this.listingsPage ||
         (page.total != null && listings.length >= page.total);
       if (done) break;
     }

@@ -194,7 +194,7 @@ export function MarketActionDialog({
     (a) =>
       a.market === 'dynadot' &&
       !!a.verificationId &&
-      txtTargets.some((t) => t.accountId !== a.registrarAccountId),
+      txtTargets.some((t) => t.accountId !== a.keyRegistrarAccountId),
   );
   const addTxt = txtChoice ?? dynadotNeedsTxt;
   const bulkBusy = bulk?.status === 'running';

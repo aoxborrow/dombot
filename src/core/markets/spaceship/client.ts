@@ -405,7 +405,7 @@ export class SellerHubClient {
       const code = codeForStatus(response.status);
       const message =
         code === 'SCOPE' && endpoint.startsWith('/v1/sellerhub')
-          ? 'This Spaceship API key has no SellerHub access. In Spaceship’s API Manager, give it sellerhub:read, and sellerhub:write to list from DomBot.'
+          ? 'This Spaceship API key has no SellerHub access. In Spaceship’s API Manager, give it sellerhub:read, and sellerhub:write to list from DomBot, or choose Use a separate API key and enter a key that has them.'
           : (messageOf(parsed) ??
             `Spaceship answered HTTP ${response.status}.`);
       throw new SpaceshipError(code, message, response.status, spaceshipCode);

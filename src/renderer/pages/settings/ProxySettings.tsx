@@ -8,7 +8,7 @@ import type {
 } from '../../../shared/ipc';
 import { accountTitle } from '../../../shared/account-label';
 import { isPublicIpv4, parseProxy } from '../../../shared/proxy';
-import { RegistrarLogo } from '../../components/RegistrarLogo';
+import { MarketLogo, RegistrarLogo } from '../../components/RegistrarLogo';
 import { isDemo, isWeb } from '../../lib/platform';
 import { Button } from '@/components/ui/button';
 import { FieldGroup } from '@/components/ui/field';
@@ -53,6 +53,7 @@ export default function ProxySettings() {
   const locked = busy !== null || settings === null;
   const saved = settings?.proxy ?? null;
   const users = settings?.users ?? [];
+  const marketUsers = settings?.marketUsers ?? [];
   const filled = Boolean(url.trim() && egressIp.trim());
   const dirty =
     url.trim() !== (saved?.url ?? '') ||
@@ -288,10 +289,10 @@ export default function ProxySettings() {
 
       {saved && (
         <SettingsCard title="Used by">
-          {users.length === 0 ? (
+          {users.length + marketUsers.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No accounts use the proxy yet. Turn it on for an account under
-              Registrars.
+              Registrars or Markets.
             </p>
           ) : (
             <ul className="-my-1 flex flex-col divide-y divide-border/60">
@@ -312,6 +313,19 @@ export default function ProxySettings() {
                       user.hasSiblings,
                     )}
                   </span>
+                </li>
+              ))}
+              {marketUsers.map((user) => (
+                <li
+                  key={user.accountId}
+                  className="flex items-center gap-3 py-2.5"
+                >
+                  <MarketLogo
+                    market={user.market}
+                    label={user.label}
+                    className="size-6"
+                  />
+                  <span className="min-w-0 truncate text-sm">{user.label}</span>
                 </li>
               ))}
             </ul>

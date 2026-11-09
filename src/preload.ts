@@ -172,6 +172,8 @@ const api: DombotApi = {
     ipcRenderer.invoke(IpcChannels.connectMarketAccount, ...args),
   renameMarketAccount: (...args) =>
     ipcRenderer.invoke(IpcChannels.renameMarketAccount, ...args),
+  linkMarketAccount: (...args) =>
+    ipcRenderer.invoke(IpcChannels.linkMarketAccount, ...args),
   setMarketVerification: (...args) =>
     ipcRenderer.invoke(IpcChannels.setMarketVerification, ...args),
   setMarketAccountEnabled: (...args) =>

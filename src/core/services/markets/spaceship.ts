@@ -24,7 +24,7 @@ import {
 } from '../../markets/types';
 
 // Spaceship SellerHub in the shared market model (docs/markets.md,
-// docs/sellerhub-api.md), on the Spaceship registrar account's key. One
+// docs/sellerhub-api.md), on a Spaceship registrar account's key or its own. One
 // call per name: SellerHub has no bulk. Writes read the listing first
 // (which says whether to create or change it, and whether a sale holds
 // it), and the write answers with the listing as saved, so there's no read
@@ -59,8 +59,11 @@ export const SPACESHIP_CAPABILITIES: MarketCapabilities = {
   rateLimit: 60,
 };
 
-/** None of its own: the account uses a Spaceship registrar account's key. */
-export const SPACESHIP_CONFIG_FIELDS: MarketConfigField[] = [];
+/** For an account on its own key, not a Spaceship registrar account's. */
+export const SPACESHIP_CONFIG_FIELDS: MarketConfigField[] = [
+  { name: 'apiKey', label: 'API Key', type: 'password', required: true },
+  { name: 'apiSecret', label: 'API Secret', type: 'password', required: true },
+];
 
 /** SellerHub's longest description. */
 const DESCRIPTION_MAX = 5000;
@@ -506,7 +509,7 @@ export class SpaceshipAdapter implements MarketAdapter {
   }
 }
 
-/** An adapter for a SellerHub market account, on its registrar account's key. */
+/** An adapter for a SellerHub market account. */
 export function createSpaceshipAdapter(
   accountId: string,
   credentials: SpaceshipAccountCredentials,
@@ -515,7 +518,7 @@ export function createSpaceshipAdapter(
   const { apiKey, apiSecret } = credentials;
   if (!apiKey || !apiSecret) {
     throw new Error(
-      'This SellerHub account’s registrar account has no API key and secret. Check Settings → Registrars.',
+      'This SellerHub account has no API key and secret. Check its registrar account in Settings → Registrars, or give it a separate key.',
     );
   }
   return new SpaceshipAdapter(
