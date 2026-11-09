@@ -18,12 +18,14 @@ import { writeEntry, readEntry } from './cache';
 const name = 'two-year.ai';
 const registryDate = '2025-12-28T21:22:06.214Z';
 let registryCalls = 0;
+let registryMissing = false;
 beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-11-09T12:00:00Z'));
   configureStore(new MemoryDocStore());
   await hydrateStores();
   registryCalls = 0;
+  registryMissing = false;
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: string) => {
@@ -34,6 +36,7 @@ beforeEach(async () => {
         });
       if (url === 'https://registry.example/rdap/domain/' + name) {
         registryCalls++;
+        if (registryMissing) return new Response('', { status: 404 });
         return Response.json({
           ldhName: name,
           events: [
@@ -162,6 +165,14 @@ it('repairs an already cached partial without pretending its controls or quote w
     data: {
       renewalQuote: { renewal: 100, currency: 'USD' },
       renewalQuoteFetchedAt: 123,
+      domainName: name,
     },
   });
+  registryMissing = true;
+  vi.setSystemTime(new Date('2026-11-10T12:00:02Z'));
+  await syncRegistrar('namecheap', account.id);
+  expect(getCachedDetail()[key].createdDate).toBeNull();
+  expect(getCachedDetail()[key]).not.toHaveProperty('createdDateSource');
+  expect(getMergedPortfolio().domains[0].createdDate).toBeNull();
+  expect(getMergedPortfolio().domains[0]).not.toHaveProperty('createdDateSource');
 });

@@ -33,7 +33,7 @@ const doc = () => ({
 });
 const mockFetch = (body = doc()) =>
   vi.fn(async (url: string) =>
-    String(url).includes('data.iana.org')
+    new URL(String(url)).hostname === 'data.iana.org'
       ? Response.json({ services: [[['ai'], [registry]]] })
       : Response.json(body),
   );
@@ -68,7 +68,7 @@ describe('verified registration creation recovery', () => {
     });
     expect(result).not.toHaveProperty('createdDateIssue');
     expect(send).toHaveBeenCalledTimes(2);
-    expect(send.mock.calls.every(([url]) => !url.includes('rdap.org/'))).toBe(
+    expect(send.mock.calls.every(([url]) => new URL(String(url)).hostname !== 'rdap.org')).toBe(
       true,
     );
     expect(withCachedRegistryCreation(bad).createdDate).toEqual(
