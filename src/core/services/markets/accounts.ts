@@ -11,14 +11,16 @@ import {
   MARKET_LAST_SYNC_NAMESPACE,
 } from '../../storage/names';
 import { Namespace } from '../../storage/namespace';
-import { accountById } from '../accounts';
+import { accountById, isSavedAccount, listAccounts } from '../accounts';
 import { getStoredCredentials } from '../credentials';
-import { accountProxyRoute } from '../proxies';
-import { sendThroughProxy } from '../proxy-transport';
+import { accountProxyRoute, setMarketProxyUsers } from '../proxies';
+import { pinnedProxyFetch } from '../proxy-transport';
+import { DEFAULT_PROXY_ID } from '../../../shared/proxy';
 import { serialByKey } from '../serial-by-key';
 import {
   buildAdapter,
   isMarketId,
+  marketApiOrigin,
   marketInfo,
   type AdapterContext,
   type AnyMarketAdapter,
@@ -27,14 +29,28 @@ import {
 
 // Market accounts (Settings → Markets, docs/markets.md): one record per
 // connected account, its credentials in their own namespace, which hosts
-// seal like registrar credentials, and what its last sync found. A market
-// that runs on a registrar's API (Dynadot) keeps no credentials: its account
-// names a registrar account and calls with that account's key and proxy.
+// seal like registrar credentials, and what its last sync found. On a market
+// that runs on a registrar's API (Dynadot, Spaceship) an account either names
+// a registrar account and calls with that account's key and proxy, keeping no
+// credentials, or has a key of its own like any other market's. Any account
+// with its own key chooses its own proxy.
 
 const accounts = new Namespace<MarketAccount>(MARKET_ACCOUNTS_NAMESPACE);
 const credentials = new Namespace<Credentials>(MARKET_CREDENTIALS_NAMESPACE);
 const lastSync = new Namespace<MarketSyncState>(MARKET_LAST_SYNC_NAMESPACE);
 const saveInOrder = serialByKey();
+
+// The fixed IP proxy page lists these, and removing the proxy turns it off
+// for them (they go direct, as registrar accounts do).
+setMarketProxyUsers({
+  list: (proxyId) =>
+    listMarketAccounts()
+      .filter((a) => !a.registrarAccountId && a.proxyId === proxyId)
+      .map((a) => ({ accountId: a.id, market: a.market, label: a.label })),
+  clear: async (id) => {
+    await accounts.set(id, { ...marketAccount(id), proxyId: null });
+  },
+});
 
 /** Hooks other market services register to drop an account's data. */
 const onRemove: ((accountId: string) => void)[] = [];
@@ -71,35 +87,54 @@ function hasCredentials(account: MarketAccount): boolean {
 }
 
 /**
- * How a registrar-backed account's calls go out: through its registrar
- * account's proxy when that has one, never direct from an address the
- * registrar hasn't whitelisted.
+ * The saved registrar account on the same key as this account's own. Its
+ * registrar calls spend the same budget (docs/dynadot-marketplace-api.md,
+ * "Credentials"), so the two have to share a limiter.
  */
-function contextOf(account: MarketAccount): AdapterContext {
+function registrarOnSameKey(market: MarketId, own: Credentials): string | null {
+  const registrar = marketInfo(market).registrar;
+  if (!registrar || !own.apiKey) return null;
+  return (
+    listAccounts().find(
+      (a) =>
+        a.registrar === registrar &&
+        isSavedAccount(a.id) &&
+        getStoredCredentials(a.id).apiKey === own.apiKey,
+    )?.id ?? null
+  );
+}
+
+/**
+ * How an account's calls go out: through its proxy when it uses one, its
+ * registrar account's when it's linked to one, and never direct from an
+ * address the market hasn't whitelisted.
+ */
+function contextOf(
+  account: MarketAccount,
+  own: Credentials = credentialsOf(account),
+): AdapterContext {
   const id = account.registrarAccountId;
-  if (!id) return {};
-  let registrar;
-  try {
-    registrar = accountById(id);
-  } catch {
-    throw new Error(
-      `The ${marketInfo(account.market).name} registrar account this uses is gone. Remove this market account, or add that registrar account again.`,
-    );
+  let via: { proxyId?: string | null } = account;
+  if (id) {
+    try {
+      via = accountById(id);
+    } catch {
+      throw new Error(
+        `The ${marketInfo(account.market).name} registrar account this uses is gone. Remove this market account, add that registrar account again, or use a separate API key.`,
+      );
+    }
   }
-  const route = accountProxyRoute(registrar);
+  const route = accountProxyRoute(via);
+  const limiterKey = id ?? registrarOnSameKey(account.market, own);
   return {
-    registrarAccountId: id,
+    ...(id && { registrarAccountId: id }),
+    ...(limiterKey && { limiterKey }),
     ...(route && {
-      fetch: (input, init) =>
-        sendThroughProxy(
-          route,
-          typeof input === 'string'
-            ? input
-            : input instanceof URL
-              ? input.href
-              : input.url,
-          init ?? {},
-        ),
+      fetch: pinnedProxyFetch(
+        route,
+        () => marketApiOrigin(account.market),
+        marketInfo(account.market).name,
+      ),
     }),
   };
 }
@@ -108,6 +143,8 @@ export function marketAccountViews(): MarketAccountView[] {
   return listMarketAccounts().map((a) => ({
     ...a,
     configured: hasCredentials(a),
+    keyRegistrarAccountId:
+      a.registrarAccountId ?? registrarOnSameKey(a.market, credentialsOf(a)),
     sync: lastSync.get(a.id) ?? null,
   }));
 }
@@ -175,10 +212,31 @@ export function marketAdapter(id: string): AnyMarketAdapter {
   );
 }
 
+/** A registrar account this market account may use: the right kind, and free. */
+function assertLinkable(
+  account: MarketAccount,
+  registrarAccountId: string,
+): void {
+  const info = marketInfo(account.market);
+  if (accountById(registrarAccountId).registrar !== info.registrar) {
+    throw new Error(`That isn’t a ${info.name} registrar account.`);
+  }
+  // Two would read the same listings twice.
+  if (
+    listMarketAccounts().some(
+      (a) => a.id !== account.id && a.registrarAccountId === registrarAccountId,
+    )
+  ) {
+    throw new Error(
+      `A ${info.name} market account already uses that registrar account.`,
+    );
+  }
+}
+
 /**
  * Connect a market account: test the credentials first, so a typo never
  * leaves an account behind, then save. Sync is the caller's next step. A
- * market on a registrar's API takes the registrar account to use instead.
+ * market on a registrar's API can take a registrar account to use instead.
  */
 export async function connectMarketAccount(
   market: MarketId,
@@ -187,6 +245,7 @@ export async function connectMarketAccount(
   /** A fixed id, for seeded data and tests. */
   id: string = crypto.randomUUID(),
   registrarAccountId?: string | null,
+  useProxy = false,
 ): Promise<MarketAccountView> {
   if (!isMarketId(market)) throw new Error('Unknown market.');
   const info = marketInfo(market);
@@ -199,25 +258,8 @@ export async function connectMarketAccount(
     createdAt: Date.now(),
   };
   let test;
-  if (info.registrar) {
-    if (!registrarAccountId) {
-      throw new Error(
-        `Choose the ${info.name} registrar account whose API key to use.`,
-      );
-    }
-    if (accountById(registrarAccountId).registrar !== info.registrar) {
-      throw new Error(`That isn’t a ${info.name} registrar account.`);
-    }
-    // Two would read the same listings twice.
-    if (
-      listMarketAccounts().some(
-        (a) => a.registrarAccountId === registrarAccountId,
-      )
-    ) {
-      throw new Error(
-        `A ${info.name} market account already uses that registrar account.`,
-      );
-    }
+  if (info.registrar && registrarAccountId) {
+    assertLinkable(account, registrarAccountId);
     account.registrarAccountId = registrarAccountId;
     test = await buildAdapter(
       market,
@@ -228,7 +270,18 @@ export async function connectMarketAccount(
     await accounts.set(id, account);
   } else {
     const clean = cleanCredentials(market, raw);
-    test = await buildAdapter(market, id, clean).test();
+    if (info.registrar && !Object.keys(clean).length) {
+      throw new Error(
+        `Choose the ${info.name} registrar account whose API key to use, or enter a separate key.`,
+      );
+    }
+    if (useProxy) account.proxyId = DEFAULT_PROXY_ID;
+    test = await buildAdapter(
+      market,
+      id,
+      clean,
+      contextOf(account, clean),
+    ).test();
     // Secrets first: a failed write never leaves an account without them.
     await saveInOrder(id, () => credentials.set(id, clean));
     await accounts.set(id, account);
@@ -245,20 +298,50 @@ export async function connectMarketAccount(
   return marketAccountViews().find((a) => a.id === id)!;
 }
 
-/** Replace an account's credentials after testing them. */
+/**
+ * Replace an account's own credentials after testing them, and its proxy
+ * choice when `useProxy` is given. An account on a registrar's key moves to
+ * this one.
+ */
 export async function saveMarketCredentials(
   id: string,
   raw: Credentials,
+  useProxy?: boolean,
 ): Promise<void> {
-  const account = marketAccount(id);
-  if (account.registrarAccountId) {
+  const current = marketAccount(id);
+  const clean = cleanCredentials(current.market, raw);
+  const { registrarAccountId, ...next } = current;
+  if (useProxy !== undefined) {
+    next.proxyId = useProxy ? DEFAULT_PROXY_ID : null;
+  }
+  await buildAdapter(current.market, id, clean, contextOf(next, clean)).test();
+  await saveInOrder(id, () => credentials.set(id, clean));
+  if (registrarAccountId || next.proxyId !== current.proxyId) {
+    await accounts.set(id, next);
+  }
+}
+
+/** Move an account onto a registrar account's key, after testing that key. */
+export async function linkMarketAccount(
+  id: string,
+  registrarAccountId: string,
+): Promise<void> {
+  const current = marketAccount(id);
+  if (!marketInfo(current.market).registrar) {
     throw new Error(
-      'This account uses its registrar account’s API key. Change the key in Settings → Registrars.',
+      `${marketInfo(current.market).name} doesn’t run on a registrar’s key.`,
     );
   }
-  const clean = cleanCredentials(account.market, raw);
-  await buildAdapter(account.market, id, clean).test();
-  await saveInOrder(id, () => credentials.set(id, clean));
+  assertLinkable(current, registrarAccountId);
+  const next: MarketAccount = { ...current, registrarAccountId, proxyId: null };
+  await buildAdapter(
+    current.market,
+    id,
+    credentialsOf(next),
+    contextOf(next),
+  ).test();
+  await accounts.set(id, next);
+  await saveInOrder(id, () => credentials.delete(id));
 }
 
 export async function renameMarketAccount(

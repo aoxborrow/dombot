@@ -139,6 +139,8 @@ export interface ProxySettings {
     /** The registrar has other saved accounts, proxied or not. */
     hasSiblings: boolean;
   }[];
+  /** Market accounts on their own key that use the proxy. */
+  marketUsers: { accountId: string; market: MarketId; label: string }[];
 }
 
 /** The address the internet saw for a request sent through the proxy. */
@@ -217,6 +219,7 @@ export const IpcChannels = {
   getMarketCatalog: 'markets:catalog',
   listMarketAccounts: 'markets:listAccounts',
   connectMarketAccount: 'markets:connectAccount',
+  linkMarketAccount: 'markets:linkAccount',
   renameMarketAccount: 'markets:renameAccount',
   setMarketVerification: 'markets:setVerification',
   setMarketAccountEnabled: 'markets:setEnabled',
@@ -1235,13 +1238,20 @@ export interface DombotApi {
   /**
    * Tests the credentials, saves the account, then syncs it. A market on a
    * registrar's API (`MarketInfo.registrar`) takes the registrar account
-   * whose key it uses instead of credentials.
+   * whose key it uses instead of credentials. `useProxy` is for an account
+   * on its own key.
    */
   connectMarketAccount: (
     market: MarketId,
     credentials: Record<string, string>,
     label?: string,
-    registrarAccountId?: string,
+    registrarAccountId?: string | null,
+    useProxy?: boolean,
+  ) => Promise<MarketAccountView[]>;
+  /** Switch an account to a registrar account's key, dropping its own. */
+  linkMarketAccount: (
+    accountId: string,
+    registrarAccountId: string,
   ) => Promise<MarketAccountView[]>;
   renameMarketAccount: (
     accountId: string,
@@ -1266,6 +1276,7 @@ export interface DombotApi {
   saveMarketCredentials: (
     accountId: string,
     credentials: Record<string, string>,
+    useProxy?: boolean,
   ) => Promise<MarketAccountView[]>;
   removeMarketAccount: (accountId: string) => Promise<MarketAccountView[]>;
   /** One account, or every enabled one when `accountId` is left out. */

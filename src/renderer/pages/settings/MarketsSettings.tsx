@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ChevronDown,
-  ChevronRight,
   CircleAlert,
   Ellipsis,
   Pencil,
@@ -25,9 +24,11 @@ import {
   verificationTxt,
 } from '../../../shared/market-verification';
 import { accountTitle } from '../../../shared/account-label';
+import type { ProxySettings } from '../../../shared/ipc';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '../../store/app';
-import { MarketLogo, RegistrarLogo } from '../../components/RegistrarLogo';
+import { MarketLogo } from '../../components/RegistrarLogo';
+import { isDemo } from '../../lib/platform';
 import { timeAgo } from '../../lib/time';
 import { useSyncState } from '../../lib/sync-state';
 import {
@@ -62,10 +63,12 @@ import {
 } from '@/components/ui/select';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import {
+  SETTINGS_LINK,
   SettingsExternalLink,
   SettingsField,
   SettingsHelp,
 } from './SettingsCard';
+import { ProxyToggle } from './ProxyToggle';
 
 // Settings → Markets (docs/markets.md): one card per connected marketplace
 // account, built like the registrar cards. Everything a card shows comes from
@@ -300,14 +303,18 @@ function CredentialFields({
   );
 }
 
+/** The key-source choice for an account's own key, beside registrar ids. */
+const OWN_KEY = 'own-key';
+
 const filled = (market: MarketInfo, values: Values) =>
   market.configFields.every((f) => !f.required || values[f.name]?.trim());
 
 /**
- * The connected accounts of the registrar a market runs on (Dynadot), as
- * the picker lists them: id and title ("Dynadot", "Dynadot · Personal").
+ * The connected accounts of the registrar a market runs on (Dynadot) that an
+ * account can use, as the picker lists them: id and title ("Dynadot",
+ * "Dynadot · Personal"). Those no market account uses yet, and `keep`.
  */
-function useRegistrarAccounts(market: MarketInfo, unusedOnly = false) {
+function useRegistrarAccounts(market: MarketInfo, keep?: string | null) {
   const registrars = useAppStore((s) => s.registrars);
   const loadRegistrars = useAppStore((s) => s.loadRegistrars);
   const marketAccounts = useAppStore((s) => s.marketAccounts);
@@ -323,78 +330,91 @@ function useRegistrarAccounts(market: MarketInfo, unusedOnly = false) {
       id: r.accountId ?? r.name,
       title: accountTitle(r.displayName, r.accountLabel, mine.length > 1),
     }))
-    .filter((o) => !unusedOnly || !used.includes(o.id));
+    .filter((o) => o.id === keep || !used.includes(o.id));
+}
+
+/** The fixed IP proxy, for the toggle on an account with its own key. */
+function useProxySetting(wanted: boolean) {
+  const [proxy, setProxy] = useState<ProxySettings['proxy']>(null);
+  useEffect(() => {
+    if (!wanted) return;
+    let current = true;
+    window.api
+      .getProxySettings()
+      .then((settings) => current && setProxy(settings.proxy))
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, [wanted]);
+  return proxy;
 }
 
 /**
- * For a market on a registrar's API: the registrar account whose key it
- * uses. Picked when the account is added; afterwards, a link to its card in
- * Settings → Registrars.
+ * For a market on a registrar's API: a registrar account whose key to use,
+ * or a separate key. A linked card also links to that registrar account.
  */
-function RegistrarAccountField({
+function KeySourceField({
   market,
   idPrefix,
   value,
+  linked,
   disabled,
+  options,
   onChange,
 }: {
   market: MarketInfo;
   idPrefix: string;
   value: string | null;
+  /** The registrar account a saved account is on; its card's link. */
+  linked?: string | null;
   disabled: boolean;
-  onChange?: (id: string) => void;
+  options: { id: string; title: string }[];
+  onChange: (source: string) => void;
 }) {
-  // A new account offers the registrar accounts no market account uses yet.
-  const options = useRegistrarAccounts(market, Boolean(onChange));
-  const id = `${idPrefix}-registrar-account`;
-  const current = options.find((o) => o.id === value);
-  if (!onChange) {
-    return current ? (
-      <Link
-        to={`/settings?tab=registrars&account=${encodeURIComponent(current.id)}`}
-        title={`Open ${current.title} in Settings → Registrars`}
-        className="flex w-fit items-center gap-2.5 rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50"
-      >
-        {market.registrar && (
-          <RegistrarLogo
-            name={market.registrar}
-            label={market.name}
-            className="size-[18px] text-muted-foreground/70"
-          />
-        )}
-        {current.title}
-        <ChevronRight className="size-4 text-muted-foreground" />
-      </Link>
-    ) : (
-      <p className="text-sm text-destructive">
-        The {market.name} registrar account this used is gone.
-      </p>
-    );
-  }
+  const id = `${idPrefix}-key-source`;
+  const current = options.find((o) => o.id === linked);
   return (
-    <SettingsField htmlFor={id} label={`${market.name} Account`}>
-      {options.length === 0 ? (
+    <SettingsField htmlFor={id} label="API Key Source">
+      {options.length === 0 && value === OWN_KEY ? (
         <p id={id} className="text-sm text-muted-foreground">
-          No {market.name} registrar account is free: add one in Settings →
-          Registrars first.
+          No {market.name} registrar account is free, so this account uses a
+          separate API key.
         </p>
       ) : (
-        <Select
-          value={value ?? undefined}
-          onValueChange={onChange}
-          disabled={disabled}
-        >
-          <SelectTrigger id={id} className="w-fit min-w-48">
-            <SelectValue placeholder={`Choose a ${market.name} account`} />
-          </SelectTrigger>
-          <SelectContent>
-            {options.map((o) => (
-              <SelectItem key={o.id} value={o.id}>
-                {o.title}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col items-start gap-1.5">
+          <Select
+            value={value ?? undefined}
+            onValueChange={onChange}
+            disabled={disabled}
+          >
+            <SelectTrigger id={id} className="w-fit min-w-48">
+              <SelectValue placeholder={`Choose a ${market.name} account`} />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((o) => (
+                <SelectItem key={o.id} value={o.id}>
+                  Registrar Account: {o.title}
+                </SelectItem>
+              ))}
+              <SelectItem value={OWN_KEY}>Use a separate API key</SelectItem>
+            </SelectContent>
+          </Select>
+          {current && value === linked && (
+            <Link
+              to={`/settings?tab=registrars&account=${encodeURIComponent(current.id)}`}
+              title={`Open ${current.title} in Settings → Registrars`}
+              className={cn(SETTINGS_LINK, 'text-xs')}
+            >
+              Open registrar account
+            </Link>
+          )}
+        </div>
+      )}
+      {linked && !current && value === linked && (
+        <p className="text-sm text-destructive">
+          The {market.name} registrar account this used is gone.
+        </p>
       )}
     </SettingsField>
   );
@@ -414,14 +434,26 @@ function DraftMarketCard({
   const [label, setLabel] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // A market on a registrar's API uses one of that registrar's accounts.
-  const registrarAccounts = useRegistrarAccounts(market, true);
+  // A market on a registrar's API can use one of that registrar's accounts.
+  const registrarAccounts = useRegistrarAccounts(market);
   const [picked, setPicked] = useState<string | null>(null);
-  const registrarAccountId =
-    picked ?? (registrarAccounts.length === 1 ? registrarAccounts[0].id : null);
-  const ready = market.registrar
-    ? registrarAccountId !== null
-    : filled(market, values);
+  const [useProxy, setUseProxy] = useState(false);
+  // Until the registrar accounts load, nothing is chosen for the user: a
+  // default now could swap the form under a key they've started typing.
+  const registrarsLoading = useAppStore(
+    (s) => Boolean(market.registrar) && s.registrars === null,
+  );
+  const source = !market.registrar
+    ? OWN_KEY
+    : registrarsLoading
+      ? picked
+      : registrarAccounts.length === 0
+        ? OWN_KEY
+        : (picked ??
+          (registrarAccounts.length === 1 ? registrarAccounts[0].id : null));
+  const ownKey = source === OWN_KEY;
+  const proxy = useProxySetting(ownKey);
+  const ready = ownKey ? filled(market, values) : source !== null;
 
   const connect = async () => {
     setSaving(true);
@@ -430,9 +462,10 @@ function DraftMarketCard({
     try {
       const accounts = await window.api.connectMarketAccount(
         market.id,
-        values,
-        label.trim() || undefined,
-        market.registrar ? (registrarAccountId ?? undefined) : undefined,
+        ownKey ? values : {},
+        label.trim() || market.name,
+        ownKey ? null : source,
+        ownKey ? useProxy : undefined,
       );
       await setMarketAccounts(accounts);
       // Accounts come sorted by market, so the new one is the one not seen.
@@ -471,15 +504,17 @@ function DraftMarketCard({
       >
         <MarketHelp market={market} />
         <FieldGroup className="gap-4">
-          {market.registrar ? (
-            <RegistrarAccountField
+          {market.registrar && (
+            <KeySourceField
               market={market}
               idPrefix="new-market"
-              value={registrarAccountId}
+              value={source}
+              options={registrarAccounts}
               disabled={saving}
               onChange={setPicked}
             />
-          ) : (
+          )}
+          {ownKey && (
             <CredentialFields
               market={market}
               idPrefix="new-market"
@@ -504,6 +539,16 @@ function DraftMarketCard({
             />
           </Field>
         </FieldGroup>
+        {ownKey && (
+          <ProxyToggle
+            id="new-market-proxy"
+            provider={{ displayName: market.name }}
+            proxy={proxy}
+            enabled={useProxy}
+            disabled={saving || isDemo()}
+            onChange={setUseProxy}
+          />
+        )}
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <Button type="submit" disabled={saving || !ready}>
             {saving ? 'Connecting…' : 'Connect'}
@@ -582,6 +627,16 @@ function MarketCard({
   const [open, setOpen] = useState(false);
   const [values, setValues] = useState<Values>({});
   const [original, setOriginal] = useState<Values>({});
+  const savedSource = account.registrarAccountId ?? OWN_KEY;
+  const [source, setSource] = useState(savedSource);
+  const ownKey = source === OWN_KEY;
+  const registrarAccounts = useRegistrarAccounts(
+    market,
+    account.registrarAccountId,
+  );
+  const proxy = useProxySetting(open && ownKey);
+  const savedProxy = Boolean(account.proxyId);
+  const [useProxy, setUseProxy] = useState(savedProxy);
   const [busy, setBusy] = useState<
     'sync' | 'save' | 'toggle' | 'remove' | null
   >(null);
@@ -652,7 +707,10 @@ function MarketCard({
   const verification = verifyValue ?? shownVerification;
   const verificationChanged = verification.trim() !== shownVerification;
 
-  const dirty = changed || verificationChanged;
+  const sourceChanged = source !== savedSource;
+  const proxyChanged = ownKey && useProxy !== savedProxy;
+  const dirty =
+    (ownKey && changed) || sourceChanged || proxyChanged || verificationChanged;
 
   /**
    * One Save for the whole card: the key (tested first, so a refused one
@@ -673,10 +731,24 @@ function MarketCard({
     }
     let views: MarketAccountView[] | null = null;
     try {
-      if (changed || keyRefused) {
+      if (
+        (ownKey && (changed || proxyChanged || keyRefused)) ||
+        sourceChanged
+      ) {
         try {
-          views = await window.api.saveMarketCredentials(account.id, values);
-          setOriginal(values);
+          if (ownKey) {
+            views = await window.api.saveMarketCredentials(
+              account.id,
+              values,
+              useProxy,
+            );
+            setOriginal(values);
+          } else {
+            views = await window.api.linkMarketAccount(account.id, source);
+            setValues({});
+            setOriginal({});
+            setUseProxy(false);
+          }
           setKeyRefused(false);
         } catch (err) {
           setKeyRefused(true);
@@ -869,14 +941,18 @@ function MarketCard({
             <div>
               <MarketHelp market={market} />
               <FieldGroup className="gap-4">
-                {account.registrarAccountId ? (
-                  <RegistrarAccountField
+                {market.registrar && (
+                  <KeySourceField
                     market={market}
                     idPrefix={account.id}
-                    value={account.registrarAccountId}
-                    disabled
+                    value={source}
+                    linked={account.registrarAccountId}
+                    options={registrarAccounts}
+                    disabled={busy !== null}
+                    onChange={setSource}
                   />
-                ) : (
+                )}
+                {ownKey && (
                   <CredentialFields
                     market={market}
                     idPrefix={account.id}
@@ -896,6 +972,16 @@ function MarketCard({
                   onValue={setVerifyValue}
                 />
               </FieldGroup>
+              {ownKey && (
+                <ProxyToggle
+                  id={`${account.id}-proxy`}
+                  provider={{ displayName: market.name }}
+                  proxy={proxy}
+                  enabled={useProxy}
+                  disabled={busy !== null || isDemo()}
+                  onChange={setUseProxy}
+                />
+              )}
             </div>
             {(account.sync?.status?.length ||
               (lease && lease.enabled !== null)) && (
@@ -914,7 +1000,7 @@ function MarketCard({
                   disabled={
                     busy !== null ||
                     !(dirty || error) ||
-                    !filled(market, values)
+                    (ownKey && !filled(market, values))
                   }
                 >
                   {busy === 'save' ? 'Saving…' : 'Save'}

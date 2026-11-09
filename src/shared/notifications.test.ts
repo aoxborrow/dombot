@@ -95,6 +95,7 @@ describe('marketSyncFailures', () => {
     label: 'Afternic',
     enabled: true,
     configured: true,
+    keyRegistrarAccountId: null,
     createdAt: 1,
     sync: null,
     ...patch,

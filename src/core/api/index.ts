@@ -108,6 +108,7 @@ import type {
 import {
   activeMarketAccounts,
   connectMarketAccount,
+  linkMarketAccount,
   getMarketCredentials,
   marketAdapter,
   marketAccountViews,
@@ -493,17 +494,28 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
       s.marketId,
       s.marketCredentials,
       s.marketLabel.optional(),
-      s.accountId,
+      // null, not omitted: JSON can't leave a gap before `useProxy`.
+      s.accountId.nullable(),
+      z.boolean().optional(),
     ]),
-    async (market, credentials, label, registrarAccountId) => {
+    async (market, credentials, label, registrarAccountId, useProxy) => {
       const account = await connectMarketAccount(
         market,
         credentials,
         label,
         undefined,
         registrarAccountId,
+        useProxy,
       );
       await syncMarketAccount(account.id);
+      return marketAccountViews();
+    },
+  ),
+  linkMarketAccount: method(
+    z.tuple([s.marketAccountId, s.accountId]),
+    async (id, registrarAccountId) => {
+      await linkMarketAccount(id, registrarAccountId);
+      await syncMarketAccount(id);
       return marketAccountViews();
     },
   ),
@@ -534,9 +546,9 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     getMarketCredentials(id),
   ),
   saveMarketCredentials: method(
-    z.tuple([s.marketAccountId, s.marketCredentials]),
-    async (id, credentials) => {
-      await saveMarketCredentials(id, credentials);
+    z.tuple([s.marketAccountId, s.marketCredentials, z.boolean().optional()]),
+    async (id, credentials, useProxy) => {
+      await saveMarketCredentials(id, credentials, useProxy);
       await syncMarketAccount(id);
       return marketAccountViews();
     },

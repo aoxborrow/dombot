@@ -394,11 +394,14 @@ Dynadot:
   market little. Not done: sizing it from `price_level` (Bulk allows 600).
   Auto-sync already runs markets after registrars, so the two syncs don't
   overlap.
-- **A Dynadot registrar account is needed** for the key, even to sell only
-  names held elsewhere. A user with no Dynadot names opens a Dynadot
-  account, makes a key and connects it as a registrar with nothing in it;
-  the market card says so. A separate key on the market card isn't
-  offered: it's the same key either way.
+- **Registrar account or a separate key** (#275). The market card's API Key
+  Source is a Dynadot registrar account or "Use a separate API key", so
+  selling needs no registrar account. An account on its own key has its own
+  fixed IP proxy switch. When a registrar account is saved with the same key,
+  the market shares its limiter (found by comparing keys at call time, so
+  the order they were connected in doesn't matter) and treats that account's
+  names as its own for the TXT default. Without one, names in the Dynadot
+  account stay out of Domains until they're imported or connected.
 
 ## What it means for DomBot
 

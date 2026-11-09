@@ -1,9 +1,14 @@
 import type { MarketId, MarketInfo } from '../../../shared/markets';
 import { AFTERNIC_NAMESERVERS } from '../../markets/afternic';
+import { AFTERNIC_BASE_URL } from '../../markets/afternic/client';
 import { ATOM_NAMESERVERS } from '../../markets/atom';
+import { ATOM_BASE_URL } from '../../markets/atom/wire';
 import { DYNADOT_NAMESERVERS } from '../../markets/dynadot';
+import { DYNADOT_BASE_URL } from '../../markets/dynadot/wire';
 import { SEDO_NAMESERVERS } from '../../markets/sedo';
+import { SEDO_BASE_URL } from '../../markets/sedo/wire';
 import { SPACESHIP_NAMESERVERS } from '../../markets/spaceship';
+import { SPACESHIP_BASE_URL } from '../../markets/spaceship/wire';
 import { getListPrices } from '../list-prices';
 import type {
   AfternicActions,
@@ -50,7 +55,12 @@ export type Credentials = Record<string, string>;
  */
 export interface AdapterContext {
   registrarAccountId?: string;
-  /** Through the registrar account's proxy, when it has one. */
+  /**
+   * The registrar account whose calls share this key's rate limit: the linked
+   * one, or one saved with the same key as this account's own.
+   */
+  limiterKey?: string;
+  /** Through the account's proxy, or its registrar account's. */
   fetch?: typeof fetch;
 }
 
@@ -62,6 +72,8 @@ export type AnyMarketAdapter = MarketAdapter &
 
 interface MarketEntry {
   info: MarketInfo;
+  /** The API's address; a proxied call may go nowhere else. */
+  apiBase: string;
   create(
     accountId: string,
     credentials: Credentials,
@@ -81,6 +93,9 @@ function askingFor(name: string): DynadotAsking | null {
     : null;
 }
 
+/** Afternic listings a page through a proxy; 500 could pass its 2 MB limit. */
+const PROXIED_AFTERNIC_PAGE = 200;
+
 const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
   afternic: {
     info: {
@@ -94,8 +109,13 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
       capabilities: AFTERNIC_CAPABILITIES,
       nameservers: AFTERNIC_NAMESERVERS,
     },
-    create: (accountId, credentials) =>
-      createAfternicAdapter(accountId, credentials),
+    apiBase: AFTERNIC_BASE_URL,
+    create: (accountId, credentials, context) =>
+      createAfternicAdapter(accountId, credentials, {
+        fetch: context.fetch,
+        // Proxied responses stop at 2 MB (MAX_PROXY_RESPONSE_BYTES).
+        ...(context.fetch && { listingsPage: PROXIED_AFTERNIC_PAGE }),
+      }),
   },
   // Checked live, reads and writes (docs/atom-api.md).
   atom: {
@@ -109,8 +129,9 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
       capabilities: ATOM_CAPABILITIES,
       nameservers: ATOM_NAMESERVERS,
     },
-    create: (accountId, credentials) =>
-      createAtomAdapter(accountId, credentials),
+    apiBase: ATOM_BASE_URL,
+    create: (accountId, credentials, context) =>
+      createAtomAdapter(accountId, credentials, { fetch: context.fetch }),
   },
   // Checked live, reads and writes (docs/dynadot-marketplace-api.md).
   dynadot: {
@@ -120,16 +141,17 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
       website: 'dynadot.com',
       keysUrl: 'https://www.dynadot.com/help/question/open-marketplace',
       helpText:
-        'Sells the names in your Dynadot account, and names you hold at other registrars once Dynadot has verified them. Uses the registrar account’s API key and proxy.',
+        'Sells the names in your Dynadot account, and names you hold at other registrars once Dynadot has verified them. Use a Dynadot registrar account’s API key and proxy, or a separate key.',
       configFields: DYNADOT_CONFIG_FIELDS,
       capabilities: DYNADOT_CAPABILITIES,
       nameservers: DYNADOT_NAMESERVERS,
       registrar: 'dynadot',
     },
+    apiBase: DYNADOT_BASE_URL,
     create: (accountId, credentials, context) =>
       createDynadotAdapter(accountId, credentials, {
         fetch: context.fetch,
-        limiterKey: context.registrarAccountId ?? accountId,
+        limiterKey: context.limiterKey ?? accountId,
         askingFor,
       }),
   },
@@ -146,8 +168,9 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
       capabilities: SEDO_CAPABILITIES,
       nameservers: SEDO_NAMESERVERS,
     },
-    create: (accountId, credentials) =>
-      createSedoAdapter(accountId, credentials),
+    apiBase: SEDO_BASE_URL,
+    create: (accountId, credentials, context) =>
+      createSedoAdapter(accountId, credentials, { fetch: context.fetch }),
   },
   // Reads checked live (docs/sellerhub-api.md).
   spaceship: {
@@ -157,16 +180,17 @@ const MARKETS: Partial<Record<MarketId, MarketEntry>> = {
       website: 'spaceship.com',
       keysUrl: 'https://www.spaceship.com/application/api-manager/',
       helpText:
-        'Sells your names on Spaceship SellerHub. Uses the registrar account’s API key and proxy; the key needs SellerHub access (sellerhub:read, and sellerhub:write to list) in Spaceship’s API Manager.',
+        'Sells your names on Spaceship SellerHub. Use a Spaceship registrar account’s API key and proxy, or a separate key. The key needs SellerHub access (sellerhub:read, and sellerhub:write to list) in Spaceship’s API Manager.',
       configFields: SPACESHIP_CONFIG_FIELDS,
       capabilities: SPACESHIP_CAPABILITIES,
       nameservers: SPACESHIP_NAMESERVERS,
       registrar: 'spaceship',
     },
+    apiBase: SPACESHIP_BASE_URL,
     create: (accountId, credentials, context) =>
       createSpaceshipAdapter(accountId, credentials, {
         fetch: context.fetch,
-        limiterKey: context.registrarAccountId ?? accountId,
+        limiterKey: context.limiterKey ?? accountId,
       }),
   },
 };
@@ -203,6 +227,13 @@ export function configureMarketFactory(next: MarketFactory | null): void {
 }
 
 /** The adapter for one account; throws when a required field is missing. */
+/** The origin a market's proxied calls are pinned to. */
+export function marketApiOrigin(market: MarketId): string {
+  const entry = MARKETS[market];
+  if (!entry) throw new Error(`DomBot doesn't support ${market} yet.`);
+  return new URL(entry.apiBase).origin;
+}
+
 export function buildAdapter(
   market: MarketId,
   accountId: string,
@@ -211,9 +242,12 @@ export function buildAdapter(
 ): AnyMarketAdapter {
   const entry = MARKETS[market];
   if (!entry) throw new Error(`DomBot doesn't support ${market} yet.`);
-  for (const field of entry.info.configFields) {
-    if (field.required && !credentials[field.name]?.trim()) {
-      throw new Error(`${field.label} is required.`);
+  // A linked account's key is the registrar's, whose form checked it.
+  if (!context.registrarAccountId) {
+    for (const field of entry.info.configFields) {
+      if (field.required && !credentials[field.name]?.trim()) {
+        throw new Error(`${field.label} is required.`);
+      }
     }
   }
   return factory

@@ -119,24 +119,17 @@ export async function sendThroughProxy(
 }
 
 /**
- * A provider whose every request goes through `route`. Requests are pinned to
- * the provider's own API origin: the library only ever calls that host, so
- * anything else is a bug or an attack and is refused rather than tunnelled.
+ * A fetch whose every request goes through `proxy`, pinned to one API origin:
+ * the client only ever calls that host, so anything else is a bug or an attack
+ * and is refused rather than tunnelled. `origin` is read per request because
+ * a registrar's is known only once its client is built.
  */
-export function createProxiedRegistrar(
-  name: RegistrarName,
-  credentials: RegistrarCredentials,
-  route: ProxyRoute,
-  /** Wraps the proxied fetch: a Dynadot key's shared pacing. */
-  pace?: ((fetch: typeof globalThis.fetch) => typeof globalThis.fetch) | null,
-): Registrar {
-  const proxy = parseProxy({ url: route.url, egressIp: route.ip });
-  if (!proxy) throw new Error('Configure the proxy URL and outgoing IP.');
-  if (!transport) throw new Error('The fixed IP proxy is not available here.');
-  const displayName = registrars[name].displayName;
-  let apiOrigin = '';
-
-  const fetch: typeof globalThis.fetch = (input, init) => {
+export function pinnedProxyFetch(
+  proxy: ProxyRoute,
+  origin: () => string,
+  displayName: string,
+): typeof globalThis.fetch {
+  return (input, init) => {
     const target = new URL(
       typeof input === 'string'
         ? input
@@ -145,8 +138,8 @@ export function createProxiedRegistrar(
           : input.url,
     );
     if (
-      !apiOrigin ||
-      target.origin !== apiOrigin ||
+      !origin() ||
+      target.origin !== origin() ||
       target.protocol !== 'https:' ||
       target.username ||
       target.password
@@ -163,6 +156,26 @@ export function createProxiedRegistrar(
       redirect: 'manual',
     });
   };
+}
+
+/**
+ * A provider whose every request goes through `route`, pinned to its own API
+ * origin.
+ */
+export function createProxiedRegistrar(
+  name: RegistrarName,
+  credentials: RegistrarCredentials,
+  route: ProxyRoute,
+  /** Wraps the proxied fetch: a Dynadot key's shared pacing. */
+  pace?: ((fetch: typeof globalThis.fetch) => typeof globalThis.fetch) | null,
+): Registrar {
+  const proxy = parseProxy({ url: route.url, egressIp: route.ip });
+  if (!proxy) throw new Error('Configure the proxy URL and outgoing IP.');
+  if (!transport) throw new Error('The fixed IP proxy is not available here.');
+  const displayName = registrars[name].displayName;
+  let apiOrigin = '';
+
+  const fetch = pinnedProxyFetch(proxy, () => apiOrigin, displayName);
 
   const provider = createRegistrar(
     name,
