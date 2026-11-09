@@ -72,10 +72,15 @@ export function syncAccounts(
   ];
 }
 
-/** Where a running Sync is: accounts done of the accounts it covers. */
+/** Where a running Sync is: accounts done of the accounts it covers, and
+ *  the first one still going. */
 export interface SyncProgress {
   done: number;
   total: number;
+  /** The first account not done yet, in sync order: the one running for
+   *  market accounts (one at a time), and the slowest left for registrars
+   *  (all at once). Null once every account is done. */
+  current: string | null;
 }
 
 /** An account's key in a sync's baseline. */
@@ -99,23 +104,28 @@ export function syncProgress(
   baseline: Record<string, number | null>,
 ): SyncProgress {
   const covered = accounts.filter((a) => baselineKey(a) in baseline);
+  const isDone = (a: SyncAccount) =>
+    a.lastAttemptAt != null && a.lastAttemptAt !== baseline[baselineKey(a)];
   return {
-    done: covered.filter(
-      (a) =>
-        a.lastAttemptAt != null && a.lastAttemptAt !== baseline[baselineKey(a)],
-    ).length,
+    done: covered.filter(isDone).length,
     total: Object.keys(baseline).length,
+    current: covered.find((a) => !isDone(a))?.name ?? null,
   };
 }
 
-/** "Syncing 15/17 accounts…", or "Syncing 15/17…" with no unit; "Syncing…"
- *  when there's no count to show. */
+/** "Syncing Dynadot (15/17 accounts)…" with a unit and the account still
+ *  going, "Syncing 15/17…" with neither; "Syncing…" when there's no count to
+ *  show. */
 export function syncingText(
   progress: SyncProgress | null,
   unit?: string,
 ): string {
   if (!progress || progress.total === 0) return 'Syncing…';
-  return `Syncing ${progress.done}/${progress.total}${unit ? ` ${unit}` : ''}…`;
+  const count = `${progress.done}/${progress.total}`;
+  if (!unit) return `Syncing ${count}…`;
+  return progress.current
+    ? `Syncing ${progress.current} (${count} ${unit})…`
+    : `Syncing ${count} ${unit}…`;
 }
 
 /** Accounts whose own last successful sync is past the threshold. The
@@ -430,7 +440,8 @@ export function useSyncState() {
     syncing,
     /** A running Sync's accounts done of its total; null otherwise. */
     progress,
-    /** "Syncing 15/17 accounts…" (or "Syncing…"), for a status line. */
+    /** "Syncing Dynadot (15/17 accounts)…" (or "Syncing…"), for a status
+     *  line. */
     syncingLabel: syncingText(progress, unit),
     /** "Syncing 15/17…", for a button or a tight spot. */
     syncingShort: syncingText(progress),

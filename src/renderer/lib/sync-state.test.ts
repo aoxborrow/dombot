@@ -88,20 +88,50 @@ describe('syncSummary', () => {
 describe('sync progress', () => {
   it('counts the accounts whose last attempt moved since the Sync began', () => {
     const before = [
-      account({ id: 'a', lastAttemptAt: 100 }),
-      account({ id: 'b', lastAttemptAt: null }),
-      account({ id: 'c', kind: 'market', lastAttemptAt: 200 }),
+      account({ id: 'a', name: 'Dynadot', lastAttemptAt: 100 }),
+      account({ id: 'b', name: 'GoDaddy', lastAttemptAt: null }),
+      account({ id: 'c', name: 'Sedo', kind: 'market', lastAttemptAt: 200 }),
     ];
     const baseline = syncBaseline(before);
-    expect(syncProgress(before, baseline)).toEqual({ done: 0, total: 3 });
+    expect(syncProgress(before, baseline)).toEqual({
+      done: 0,
+      total: 3,
+      current: 'Dynadot',
+    });
     // a synced (its clock may be behind the browser's: it only has to move),
     // b tried for the first time and failed; c is still going.
     const now = [
-      account({ id: 'a', lastAttemptAt: 50 }),
-      account({ id: 'b', lastAttemptAt: 300, lastError: 'Bad key' }),
-      account({ id: 'c', kind: 'market', lastAttemptAt: 200 }),
+      account({ id: 'a', name: 'Dynadot', lastAttemptAt: 50 }),
+      account({
+        id: 'b',
+        name: 'GoDaddy',
+        lastAttemptAt: 300,
+        lastError: 'Bad key',
+      }),
+      account({ id: 'c', name: 'Sedo', kind: 'market', lastAttemptAt: 200 }),
     ];
-    expect(syncProgress(now, baseline)).toEqual({ done: 2, total: 3 });
+    expect(syncProgress(now, baseline)).toEqual({
+      done: 2,
+      total: 3,
+      current: 'Sedo',
+    });
+  });
+
+  it('names the first account still going, in sync order', () => {
+    const baseline = syncBaseline([
+      account({ id: 'a', name: 'Dynadot', lastAttemptAt: 1 }),
+      account({ id: 'b', name: 'Namecheap', lastAttemptAt: 1 }),
+      account({ id: 'c', name: 'Afternic', kind: 'market', lastAttemptAt: 1 }),
+    ]);
+    // Registrars sync at once: a later one can finish first.
+    const now = [
+      account({ id: 'a', name: 'Dynadot', lastAttemptAt: 1 }),
+      account({ id: 'b', name: 'Namecheap', lastAttemptAt: 2 }),
+      account({ id: 'c', name: 'Afternic', kind: 'market', lastAttemptAt: 1 }),
+    ];
+    expect(syncProgress(now, baseline).current).toBe('Dynadot');
+    const all = now.map((a) => ({ ...a, lastAttemptAt: 3 }));
+    expect(syncProgress(all, baseline).current).toBeNull();
   });
 
   it('leaves out accounts the Sync doesn’t cover', () => {
@@ -110,14 +140,23 @@ describe('sync progress', () => {
       account({ id: 'a', lastAttemptAt: 2 }),
       account({ id: 'x', lastAttemptAt: 9 }),
     ];
-    expect(syncProgress(now, baseline)).toEqual({ done: 1, total: 1 });
+    expect(syncProgress(now, baseline)).toEqual({
+      done: 1,
+      total: 1,
+      current: null,
+    });
   });
 
   it('says how far along it is, or just Syncing', () => {
-    expect(syncingText({ done: 15, total: 17 }, 'accounts')).toBe(
+    const progress = { done: 15, total: 17, current: 'Dynadot' };
+    expect(syncingText(progress, 'accounts')).toBe(
+      'Syncing Dynadot (15/17 accounts)…',
+    );
+    // The short form, for buttons, leaves the name out.
+    expect(syncingText(progress)).toBe('Syncing 15/17…');
+    expect(syncingText({ ...progress, current: null }, 'accounts')).toBe(
       'Syncing 15/17 accounts…',
     );
-    expect(syncingText({ done: 15, total: 17 })).toBe('Syncing 15/17…');
     expect(syncingText(null, 'accounts')).toBe('Syncing…');
   });
 });
