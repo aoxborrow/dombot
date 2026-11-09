@@ -20,12 +20,15 @@ export function qualifyCreationDate<T extends Partial<Domain>>(
     ? 'invalid'
     : created > now + DATE_ONLY_TOLERANCE_MS
       ? 'future'
-      : Number.isFinite(expires) && created > expires + DATE_ONLY_TOLERANCE_MS
+      : domain.createdDateSource?.kind !== 'registry-rdap' &&
+          Number.isFinite(expires) &&
+          created > expires + DATE_ONLY_TOLERANCE_MS
         ? 'after-expiration'
         : null;
   const result = { ...domain };
   if (issue) {
     result.createdDate = null;
+    delete result.createdDateSource;
     result.createdDateIssue = issue;
   } else {
     delete result.createdDateIssue;
@@ -44,6 +47,12 @@ export function mergeDomainDetail<T extends Partial<Domain>>(
   const extra = qualifyCreationDate(detail, now);
   const result = { ...listed, ...extra };
   result.createdDate = extra.createdDate ?? listed.createdDate ?? null;
+  const source =
+    extra.createdDate != null
+      ? extra.createdDateSource
+      : listed.createdDateSource;
+  if (result.createdDate != null && source) result.createdDateSource = source;
+  else delete result.createdDateSource;
   const issue =
     extra.createdDateIssue ??
     (extra.createdDate == null ? listed.createdDateIssue : undefined);

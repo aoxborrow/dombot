@@ -1,5 +1,7 @@
-import type { RegistrationLookup } from '../../shared/ipc';
-import { toAscii } from '../../shared/domain-name';
+import { rdapAuthorities, readRdapJson } from './rdap-authority';
+import { qualifyCreationDate } from '../../shared/creation-date';
+import type { Domain, RegistrationLookup } from '../../shared/ipc';
+import { assertDomainName, toAscii } from '../../shared/domain-name';
 import { userAgentHeaders } from '../app-info';
 import { Namespace } from '../storage/namespace';
 import { resolveRegistrar } from '../../shared/registrar-mapping';
@@ -13,6 +15,10 @@ import { resolveRegistrar } from '../../shared/registrar-mapping';
 const store = new Namespace<RegistrationLookup>('rdap-lookups', {
   cache: true,
 });
+const creationEvidence = new Namespace<RegistrationLookup>(
+  'registry-creation-dates',
+  { cache: true },
+);
 const FRESH_MS = 24 * 60 * 60 * 1000;
 const CONCURRENCY = 4;
 const TIMEOUT_MS = 10_000;
@@ -29,6 +35,7 @@ interface RdapEntity {
   entities?: RdapEntity[];
 }
 interface RdapDoc {
+  ldhName?: string;
   events?: RdapEvent[];
   entities?: RdapEntity[];
 }
@@ -41,9 +48,10 @@ function fresh(row: RegistrationLookup | undefined, now: number): boolean {
 
 function eventDate(doc: RdapDoc, action: string): string | null {
   const date = doc.events?.find(
-    (event) => event.eventAction === action,
+    (event) => event?.eventAction === action,
   )?.eventDate;
-  if (!date || Number.isNaN(Date.parse(date))) return null;
+  if (typeof date !== 'string' || !date || Number.isNaN(Date.parse(date)))
+    return null;
   return date;
 }
 
@@ -119,13 +127,18 @@ function fromRedirector(response: Response): boolean {
   }
 }
 
-async function queryRdap(name: string): Promise<RegistrationLookup | null> {
+async function queryRdap(
+  name: string,
+  authority?: string,
+): Promise<RegistrationLookup | null> {
   let response: Response;
   try {
     response = await fetch(
-      `https://${REDIRECTOR}/domain/${encodeURIComponent(name)}`,
+      authority
+        ? new URL('domain/' + encodeURIComponent(name), authority).href
+        : `https://${REDIRECTOR}/domain/${encodeURIComponent(name)}`,
       {
-        redirect: 'follow',
+        redirect: authority ? 'error' : 'follow',
         signal: AbortSignal.timeout(TIMEOUT_MS),
         headers: {
           accept: 'application/rdap+json, application/json',
@@ -139,9 +152,16 @@ async function queryRdap(name: string): Promise<RegistrationLookup | null> {
   const checkedAt = new Date().toISOString();
   // Only the registry's own 404 means the name is free; the redirector's is
   // unknown.
-  if (response.status === 404 && !fromRedirector(response)) {
+  if (response.status === 404 && (authority || !fromRedirector(response))) {
     return {
       registered: false,
+      ...(authority
+        ? {
+            domainName: name,
+            rdapUrl: new URL('domain/' + encodeURIComponent(name), authority)
+              .href,
+          }
+        : {}),
       registrar: null,
       registrarIanaId: null,
       reseller: null,
@@ -153,13 +173,44 @@ async function queryRdap(name: string): Promise<RegistrationLookup | null> {
   if (!response.ok) return null;
   let doc: RdapDoc;
   try {
-    doc = (await response.json()) as RdapDoc;
+    doc = (await readRdapJson(response)) as RdapDoc;
+    if (
+      authority &&
+      (typeof doc.ldhName !== 'string' || toAscii(doc.ldhName) !== name)
+    )
+      return null;
   } catch {
     return null;
+  }
+  if (authority) {
+    if (!Array.isArray(doc.events)) return null;
+    const registrationDates = new Set(
+      doc.events
+        .filter((e) => e?.eventAction === 'registration')
+        .map((e) => e.eventDate),
+    );
+    const created = eventDate(doc, 'registration'),
+      expires = eventDate(doc, 'expiration');
+    if (
+      registrationDates.size !== 1 ||
+      !created ||
+      !qualifyCreationDate({
+        createdDate: new Date(created),
+        expirationDate: expires ? new Date(expires) : null,
+      }).createdDate
+    )
+      return null;
   }
   const registrar = registrarOf(doc);
   return {
     registered: true,
+    ...(authority
+      ? {
+          domainName: name,
+          rdapUrl: new URL('domain/' + encodeURIComponent(name), authority)
+            .href,
+        }
+      : {}),
     registrar: registrar.name,
     registrarIanaId: registrar.ianaId,
     reseller: registrar.reseller,
@@ -193,6 +244,7 @@ async function pooled<T>(
  */
 export async function lookupRegistrations(
   domainNames: string[],
+  options: { authoritative?: boolean; refresh?: boolean } = {},
 ): Promise<Record<string, RegistrationLookup>> {
   const now = Date.now();
   const keys = [
@@ -206,13 +258,32 @@ export async function lookupRegistrations(
   const stale: string[] = [];
   for (const key of keys) {
     const cached = store.get(key);
-    if (fresh(cached, now) && cached) out[key] = withMappedRegistrar(cached);
+    if (
+      !options.refresh &&
+      fresh(cached, now) &&
+      cached &&
+      (!options.authoritative || (cached.domainName === key && cached.rdapUrl))
+    )
+      out[key] = withMappedRegistrar(cached);
     else stale.push(key);
   }
+  const authorities =
+    options.authoritative && stale.length ? await rdapAuthorities() : null;
   await pooled(stale, async (key) => {
-    const row = await queryRdap(key);
+    let authority: string | undefined;
+    if (options.authoritative) {
+      try {
+        assertDomainName(key);
+      } catch {
+        return;
+      }
+      authority = authorities?.get(key.split('.').at(-1)!);
+      if (!authority) return;
+    }
+    const row = await queryRdap(key, authority);
     if (!row) return;
-    void store.set(key, row);
+    await store.set(key, row);
+    if (options.authoritative) await creationEvidence.set(key, row);
     out[key] = withMappedRegistrar(row);
   });
   return out;
@@ -238,4 +309,44 @@ export function rememberRegistrationLookups(
   void store.setMany(
     Object.entries(rows).map(([name, row]) => [toAscii(name), row]),
   );
+}
+
+/** Previously verified registry creation, for synchronous cache projections.
+ * Age stays explicit in provenance; a failed refresh never erases known truth. */
+export function cachedRegistryCreation(
+  domain: string,
+): Pick<Domain, 'createdDate' | 'createdDateSource'> | null {
+  if (!creationEvidence.loaded) return null;
+  const key = toAscii(domain),
+    row = creationEvidence.get(key);
+  if (
+    !row?.registered ||
+    row.domainName !== key ||
+    !row.rdapUrl ||
+    !row.created ||
+    !Number.isFinite(Date.parse(row.checkedAt)) ||
+    Date.parse(row.checkedAt) > Date.now() + 86_400_000
+  )
+    return null;
+  const qualified = qualifyCreationDate({
+    createdDate: new Date(row.created),
+    expirationDate: row.expires ? new Date(row.expires) : null,
+  });
+  if (!qualified.createdDate) return null;
+  return {
+    createdDate: qualified.createdDate,
+    createdDateSource: {
+      kind: 'registry-rdap',
+      url: row.rdapUrl,
+      checkedAt: row.checkedAt,
+    },
+  };
+}
+
+/** A registry's explicit negative result invalidates older registry evidence. */
+export function registryCreationMissing(domain: string): boolean {
+  if (!creationEvidence.loaded) return false;
+  const key = toAscii(domain),
+    row = creationEvidence.get(key);
+  return row?.domainName === key && row.registered === false;
 }

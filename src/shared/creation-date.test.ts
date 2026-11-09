@@ -87,3 +87,21 @@ describe('registrar creation dates', () => {
     ).not.toHaveProperty('createdDateIssue');
   });
 });
+
+it('retains verified registry creation independently of a conflicting registrar expiry', () => {
+  const createdDate = new Date('2025-12-28T21:22:06Z');
+  expect(
+    qualifyCreationDate(
+      {
+        createdDate,
+        expirationDate: new Date('2024-01-01'),
+        createdDateSource: {
+          kind: 'registry-rdap',
+          url: 'https://registry.example/domain/two-year.ai',
+          checkedAt: '2026-11-09T12:00:00Z',
+        },
+      },
+      Date.parse('2026-11-09T12:00:00Z'),
+    ).createdDate,
+  ).toEqual(createdDate);
+});

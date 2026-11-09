@@ -171,6 +171,7 @@ export interface QueryRow {
   status: string;
   createdDate: Date | null;
   createdDateIssue?: Domain['createdDateIssue'];
+  createdDateSource?: Domain['createdDateSource'];
   expirationDate: Date | null;
   renewalDate: Date | null;
   /** null for a name no account reports. */
@@ -483,6 +484,9 @@ export function queryPortfolio(
       inAccount,
       status: d.status,
       createdDate: d.createdDate,
+      ...(d.createdDateSource
+        ? { createdDateSource: d.createdDateSource }
+        : {}),
       ...(d.createdDateIssue ? { createdDateIssue: d.createdDateIssue } : {}),
       expirationDate: d.expirationDate,
       renewalDate: d.renewalDate,

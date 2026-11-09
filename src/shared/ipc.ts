@@ -64,6 +64,8 @@ export type DomainSource = 'registrar' | 'imported';
 export type Domain = ProviderDomain & {
   /** An invalid registrar creation date was suppressed; expiry is unaffected. */
   createdDateIssue?: 'invalid' | 'future' | 'after-expiration';
+  /** Verified registry evidence for creation, independent of registrar dates. */
+  createdDateSource?: { kind: 'registry-rdap'; url: string; checkedAt: string };
   accountId?: string;
   accountLabel?: string;
   /**
@@ -399,6 +401,9 @@ export interface RegistrationQuote {
  * name is free.
  */
 export interface RegistrationLookup {
+  /** Set only after the registry response matches the requested domain. */
+  domainName?: string;
+  rdapUrl?: string;
   registered: boolean;
   /** The registrar's name as RDAP reports it, e.g. "Name.com, Inc.". */
   registrar: string | null;

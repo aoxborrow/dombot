@@ -1,3 +1,9 @@
+import { qualifyCreationDate } from '../../shared/creation-date';
+vi.mock('../services/registry-creation', () => ({
+  recoverCreationDates: async (domains: unknown[]) =>
+    domains.map((d) => qualifyCreationDate(d as never)),
+  withCachedRegistryCreation: (d: unknown) => qualifyCreationDate(d as never),
+}));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';

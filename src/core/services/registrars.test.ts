@@ -1,3 +1,9 @@
+import { qualifyCreationDate } from '../../shared/creation-date';
+vi.mock('./registry-creation', () => ({
+  recoverCreationDates: async (domains: unknown[]) =>
+    domains.map((d) => qualifyCreationDate(d as never)),
+  withCachedRegistryCreation: (d: unknown) => qualifyCreationDate(d as never),
+}));
 import { configureStore, hydrateStores } from '../storage/namespace';
 import { MemoryDocStore } from '../storage/doc-store';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
