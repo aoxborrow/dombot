@@ -1,3 +1,4 @@
+import { reportsLock } from '../../../shared/domain-ops';
 import { useState } from 'react';
 import { domainKey } from '../../../shared/account-key';
 import type { Domain, DomainOp, RegistrarMeta } from '../../../shared/ipc';
@@ -56,13 +57,21 @@ export function SaleUnlock({ domain }: { domain: Domain }) {
       disabled={busy || unlocking || !domain.locked || reason !== null}
       onClick={unlock}
       title={
-        !domain.locked
-          ? 'The transfer lock is off: the buyer can take the name'
-          : (reason ??
-            'Turn off the transfer lock at the registrar, so the buyer can take the name')
+        !reportsLock(domain.registrar)
+          ? 'Namefi does not report transfer locks; check the domain in your Namefi account.'
+          : !domain.locked
+            ? 'The transfer lock is off: the buyer can take the name'
+            : (reason ??
+              'Turn off the transfer lock at the registrar, so the buyer can take the name')
       }
     >
-      {unlocking ? 'Unlocking…' : domain.locked ? 'Unlock' : 'Unlocked'}
+      {!reportsLock(domain.registrar)
+        ? 'Check lock at Namefi'
+        : unlocking
+          ? 'Unlocking…'
+          : domain.locked
+            ? 'Unlock'
+            : 'Unlocked'}
     </SaleStepButton>
   );
 }

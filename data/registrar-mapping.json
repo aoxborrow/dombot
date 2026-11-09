@@ -372,6 +372,10 @@
     "name": "Name.com",
     "ianaIds": [625]
   },
+  "namefi": {
+    "name": "Namefi",
+    "ianaIds": [4337]
+  },
   "namesilo": {
     "name": "NameSilo",
     "ianaIds": [1479]

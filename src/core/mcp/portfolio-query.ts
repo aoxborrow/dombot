@@ -16,7 +16,7 @@ import type {
   RenewalPricing,
 } from '../../shared/ipc';
 import { toAscii } from '../../shared/domain-name';
-import { reportsPrivacy } from '../../shared/domain-ops';
+import { reportsLock, reportsPrivacy } from '../../shared/domain-ops';
 import { STALE_AFTER_MS } from '../../shared/ipc';
 import {
   hasAskingRange,
@@ -392,7 +392,11 @@ export function queryPortfolio(
     )
       return false;
     if (args.autoRenew != null && d.autoRenew !== args.autoRenew) return false;
-    if (args.locked != null && d.locked !== args.locked) return false;
+    if (
+      args.locked != null &&
+      (!reportsLock(d.registrar) || d.locked !== args.locked)
+    )
+      return false;
     if (
       args.privacy != null &&
       (!reportsPrivacy(d.registrar) || d.privacy !== args.privacy)
@@ -483,7 +487,7 @@ export function queryPortfolio(
       // An imported name's auto-renew is what you told DomBot, if anything.
       autoRenew:
         inAccount || (imported && !d.autoRenewUnknown) ? d.autoRenew : null,
-      locked: inAccount ? d.locked : null,
+      locked: inAccount && reportsLock(d.registrar) ? d.locked : null,
       privacy: inAccount && reportsPrivacy(d.registrar) ? d.privacy : null,
       nameservers: d.nameservers,
       folder: folderNameFor(d),

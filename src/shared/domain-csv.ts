@@ -2,7 +2,7 @@ import { domainKey } from './account-key';
 import { CURRENCIES, isCurrencyCode } from './currencies';
 import { toCsv } from './csv';
 import { isIdn, toAscii, toUnicode } from './domain-name';
-import { reportsPrivacy } from './domain-ops';
+import { reportsLock, reportsPrivacy } from './domain-ops';
 import {
   type ListPrice,
   type Domain,
@@ -289,7 +289,10 @@ export const DOMAIN_CSV_COLUMNS: DomainCsvColumn[] = [
   {
     header: 'Locked',
     importable: false,
-    value: (r) => (fromRegistrar(r) ? yesNo(r.domain.locked) : ''),
+    value: (r) =>
+      fromRegistrar(r) && reportsLock(r.domain.registrar)
+        ? yesNo(r.domain.locked)
+        : '',
   },
   {
     header: 'Privacy',

@@ -43,6 +43,13 @@ const KNOWN_GAPS: Partial<
     op.kind === 'renew'
       ? 'Cloudflare’s API has no post-registration update for this — change it in the Cloudflare dashboard.'
       : null,
+  namefi: (op) =>
+    op.kind === 'lock' ||
+    op.kind === 'privacy' ||
+    op.kind === 'nameservers' ||
+    op.kind === 'renew'
+      ? 'Namefi’s public API does not offer this change; use your Namefi account.'
+      : null,
   porkbun: (op) =>
     op.kind === 'lock' || op.kind === 'privacy'
       ? 'Porkbun’s API can’t change this after registration.'
@@ -55,11 +62,19 @@ const KNOWN_GAPS: Partial<
 
 // Registrars whose API doesn't report WHOIS privacy, so the library's `false`
 // is a default rather than a reading.
-const PRIVACY_UNREPORTED = new Set<string>(['101domain']);
+const PRIVACY_UNREPORTED = new Set<string>(['101domain', 'namefi']);
 
 /** Whether `registrar` reports a domain's WHOIS privacy at all. */
 export function reportsPrivacy(registrar: string): boolean {
   return !PRIVACY_UNREPORTED.has(registrar);
+}
+
+// Likewise for the transfer lock.
+const LOCK_UNREPORTED = new Set<string>(['namefi']);
+
+/** Whether `registrar` reports a domain's transfer lock at all. */
+export function reportsLock(registrar: string): boolean {
+  return !LOCK_UNREPORTED.has(registrar);
 }
 
 // Registrars that record the user's agreement, with their IP address, when

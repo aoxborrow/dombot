@@ -235,6 +235,16 @@ describe('domainsToCsv', () => {
     expect(row).toMatchObject({ Locked: 'No', Privacy: '' });
   });
 
+  it("leaves the lock blank where the registrar doesn't report it", () => {
+    const [row] = read(
+      domainsToCsv(
+        [domain({ domainName: 'a.xyz', registrar: 'namefi' })],
+        ctx(),
+      ),
+    );
+    expect(row).toMatchObject({ Locked: '', Privacy: '' });
+  });
+
   it('writes an imported name: its own registrar, "Imported", no registrar-only values', () => {
     const [row] = read(
       domainsToCsv(

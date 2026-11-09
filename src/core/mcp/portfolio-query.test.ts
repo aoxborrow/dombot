@@ -90,6 +90,15 @@ describe('filters', () => {
     expect(row.privacy).toBeNull();
   });
 
+  it("lock is null, and never matches, where the registrar doesn't report it", () => {
+    const mixed = [
+      domain({ domainName: 'a.com', locked: false }),
+      domain({ domainName: 'd.xyz', registrar: 'namefi', locked: false }),
+    ];
+    expect(names(mixed, { locked: false })).toEqual(['a.com']);
+    expect(run(mixed, { nameContains: 'd.xyz' }).rows[0].locked).toBeNull();
+  });
+
   it('tld normalizes com and .com to the same suffix', () => {
     for (const tld of ['com', '.com']) {
       expect(names(domains, { tld }).sort()).toEqual(['a.com', 'c.com']);
