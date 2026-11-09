@@ -84,7 +84,12 @@ describe('demo markets', () => {
 
   it('has sales over three years, one at each step, and one cancelled', () => {
     const sales = marketSales();
-    expect(sales.filter((s) => s.status === 'completed').length).toBe(18);
+    const completed = sales.filter((s) => s.status === 'completed');
+    expect(completed.length).toBe(24);
+    const on = (market: string) =>
+      completed.filter((s) => s.market === market).length;
+    expect(on('atom')).toBe(6);
+    expect(on('spaceship')).toBe(4);
     expect(
       sales.filter((s) => s.status === 'in_progress').map((s) => s.action),
     ).toEqual(

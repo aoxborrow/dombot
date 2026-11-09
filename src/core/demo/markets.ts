@@ -604,6 +604,15 @@ const SOLD_PRICES = [
 /** About one sale every two months, over three years. */
 const SOLD_COUNT = 18;
 const SOLD_YEARS = 3;
+/** And more on Atom and SellerHub this past year: market, days ago. */
+const EXTRA_SOLD: readonly (readonly [MarketId, number])[] = [
+  ['spaceship', 34],
+  ['atom', 68],
+  ['spaceship', 121],
+  ['atom', 187],
+  ['spaceship', 243],
+  ['atom', 302],
+];
 
 /**
  * Fills the world from the names you've priced in DomBot: half listed on
@@ -776,12 +785,28 @@ export function seedDemoMarkets(
 
   const held = new Set(names);
   const soldNames = new Set<string>();
-  for (let i = 0; i < SOLD_COUNT; i++) {
+  /** First words the extra sales took: fewer than SOLD_FIRST has, so a
+   *  fresh one is always left. */
+  const extraFirsts = new Set<string>();
+  /** A new sold name; with `fresh`, one whose first word no other extra
+   *  sale has. */
+  const soldName = (fresh = false) => {
     let name: string;
+    let first: string;
     do {
-      name = `${pick(r, SOLD_FIRST)}${pick(r, SOLD_SECOND)}.${pick(r, ['com', 'com', 'com', 'io', 'co'])}`;
-    } while (held.has(name) || soldNames.has(name));
+      first = pick(r, SOLD_FIRST);
+      name = `${first}${pick(r, SOLD_SECOND)}.${pick(r, ['com', 'com', 'com', 'io', 'co'])}`;
+    } while (
+      held.has(name) ||
+      soldNames.has(name) ||
+      (fresh && extraFirsts.has(first))
+    );
     soldNames.add(name);
+    if (fresh) extraFirsts.add(first);
+    return name;
+  };
+  for (let i = 0; i < SOLD_COUNT; i++) {
+    const name = soldName();
     // SellerHub only lately: it opened in 2025.
     const market: MarketId =
       i % 6 === 5
@@ -794,6 +819,20 @@ export function seedDemoMarkets(
     const daysAgo = Math.round(
       ((i + 0.5 + (r() - 0.5) * 0.8) / SOLD_COUNT) * 365 * SOLD_YEARS,
     );
+    sold(name, market, amount, daysAgo);
+  }
+  // A few more on Atom and SellerHub this past year, after the rest so
+  // those keep their names, prices and dates. Each with a first word of its
+  // own, so the list doesn't repeat itself.
+  for (const [market, daysAgo] of EXTRA_SOLD)
+    sold(soldName(true), market, pick(r, SOLD_PRICES), daysAgo);
+
+  function sold(
+    name: string,
+    market: MarketId,
+    amount: number,
+    daysAgo: number,
+  ) {
     const accountId = `demo-${market}`;
     const rate = market === 'atom' ? 0.15 : market === 'spaceship' ? 0.1 : 0.2;
     const sales = world.sales.get(accountId) ?? [];
