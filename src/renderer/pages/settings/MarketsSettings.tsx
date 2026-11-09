@@ -394,7 +394,7 @@ function KeySourceField({
             <SelectContent>
               {options.map((o) => (
                 <SelectItem key={o.id} value={o.id}>
-                  {o.title}
+                  Registrar Account: {o.title}
                 </SelectItem>
               ))}
               <SelectItem value={OWN_KEY}>Use a separate API key</SelectItem>
