@@ -476,7 +476,11 @@ function DraftMarketCard({
         });
       } else if (added?.sync) {
         toast.success(
-          `${market.name} account added · ${count(added.sync.listings, 'listing')}, ${count(added.sync.sales, 'sale')}`,
+          `${market.name} account added · ${count(added.sync.listings, 'listing')}${
+            market.capabilities.sales
+              ? `, ${count(added.sync.sales, 'sale')}`
+              : ''
+          }`,
         );
       }
       onDone();
@@ -580,9 +584,12 @@ function DraftMarketCard({
 function SyncLine({
   account,
   syncing,
+  sales,
 }: {
   account: MarketAccountView;
   syncing: boolean;
+  /** The market reports sales; without, there's no count to show. */
+  sales: boolean;
 }) {
   const { sync } = account;
   let text: string;
@@ -592,7 +599,7 @@ function SyncLine({
   else
     text = [
       count(sync.listings, 'listing'),
-      count(sync.sales, 'sale'),
+      ...(sales ? [count(sync.sales, 'sale')] : []),
       // `at` is the last attempt, so a failed one says so.
       sync.lastError
         ? `sync failed ${timeAgo(sync.at)}`
@@ -816,7 +823,11 @@ function MarketCard({
             aria-hidden
             className="order-last flex min-w-0 basis-full pl-[32px] text-left @min-[600px]:order-none @min-[600px]:grow @min-[600px]:basis-0 @min-[600px]:pl-0"
           >
-            <SyncLine account={account} syncing={syncing} />
+            <SyncLine
+              account={account}
+              syncing={syncing}
+              sales={market.capabilities.sales}
+            />
           </CollapsibleTrigger>
 
           <DropdownMenu

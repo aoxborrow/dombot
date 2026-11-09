@@ -150,7 +150,7 @@ describe('sync progress', () => {
   it('says how far along it is, or just Syncing', () => {
     const progress = { done: 15, total: 17, current: 'Dynadot' };
     expect(syncingText(progress, 'accounts')).toBe(
-      'Syncing Dynadot 15/17 accounts…',
+      'Syncing Dynadot (15/17 accounts)…',
     );
     // The short form, for buttons, leaves the name out.
     expect(syncingText(progress)).toBe('Syncing 15/17…');

@@ -113,7 +113,7 @@ export function syncProgress(
   };
 }
 
-/** "Syncing Dynadot 15/17 accounts…" with a unit and the account still
+/** "Syncing Dynadot (15/17 accounts)…" with a unit and the account still
  *  going, "Syncing 15/17…" with neither; "Syncing…" when there's no count to
  *  show. */
 export function syncingText(
@@ -123,8 +123,9 @@ export function syncingText(
   if (!progress || progress.total === 0) return 'Syncing…';
   const count = `${progress.done}/${progress.total}`;
   if (!unit) return `Syncing ${count}…`;
-  const name = progress.current ? `${progress.current} ` : '';
-  return `Syncing ${name}${count} ${unit}…`;
+  return progress.current
+    ? `Syncing ${progress.current} (${count} ${unit})…`
+    : `Syncing ${count} ${unit}…`;
 }
 
 /** Accounts whose own last successful sync is past the threshold. The
@@ -439,7 +440,7 @@ export function useSyncState() {
     syncing,
     /** A running Sync's accounts done of its total; null otherwise. */
     progress,
-    /** "Syncing Dynadot 15/17 accounts…" (or "Syncing…"), for a status
+    /** "Syncing Dynadot (15/17 accounts)…" (or "Syncing…"), for a status
      *  line. */
     syncingLabel: syncingText(progress, unit),
     /** "Syncing 15/17…", for a button or a tight spot. */
