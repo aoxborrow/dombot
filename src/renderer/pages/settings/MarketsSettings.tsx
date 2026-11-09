@@ -438,11 +438,19 @@ function DraftMarketCard({
   const registrarAccounts = useRegistrarAccounts(market);
   const [picked, setPicked] = useState<string | null>(null);
   const [useProxy, setUseProxy] = useState(false);
-  const source =
-    !market.registrar || registrarAccounts.length === 0
-      ? OWN_KEY
-      : (picked ??
-        (registrarAccounts.length === 1 ? registrarAccounts[0].id : null));
+  // Until the registrar accounts load, nothing is chosen for the user: a
+  // default now could swap the form under a key they've started typing.
+  const registrarsLoading = useAppStore(
+    (s) => Boolean(market.registrar) && s.registrars === null,
+  );
+  const source = !market.registrar
+    ? OWN_KEY
+    : registrarsLoading
+      ? picked
+      : registrarAccounts.length === 0
+        ? OWN_KEY
+        : (picked ??
+          (registrarAccounts.length === 1 ? registrarAccounts[0].id : null));
   const ownKey = source === OWN_KEY;
   const proxy = useProxySetting(ownKey);
   const ready = ownKey ? filled(market, values) : source !== null;
