@@ -382,7 +382,7 @@ function KeySourceField({
           separate API key.
         </p>
       ) : (
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-col items-start gap-1.5">
           <Select
             value={value ?? undefined}
             onValueChange={onChange}
@@ -404,7 +404,7 @@ function KeySourceField({
             <Link
               to={`/settings?tab=registrars&account=${encodeURIComponent(current.id)}`}
               title={`Open ${current.title} in Settings → Registrars`}
-              className={SETTINGS_LINK}
+              className={cn(SETTINGS_LINK, 'text-xs')}
             >
               Open registrar account
             </Link>
