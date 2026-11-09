@@ -157,6 +157,7 @@ function SyncAllRow() {
   const {
     sync,
     syncing,
+    syncingLabel,
     disabled,
     title,
     accounts,
@@ -176,7 +177,7 @@ function SyncAllRow() {
         <RefreshCw className={cn(syncing && 'animate-spin')} />
         {syncing ? 'Syncing…' : 'Sync all accounts'}
       </Button>
-      {/* The button spins; the words keep the counts. */}
+      {/* The words keep the counts: how many are done while it runs. */}
       {loaded && (
         <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <span
@@ -186,7 +187,11 @@ function SyncAllRow() {
             )}
             title={summary.title}
           >
-            <SyncStatusLabel summary={summary} syncing={false} />
+            <SyncStatusLabel
+              summary={summary}
+              syncing={syncing}
+              syncingLabel={syncingLabel}
+            />
           </span>
           {lastSyncedAt !== null && summary.total > 0 && !syncing && (
             <SyncTime at={lastSyncedAt} />

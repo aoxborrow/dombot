@@ -27,6 +27,7 @@ import {
   marketAdapter,
   onMarketAccountRemoved,
   setMarketSyncState,
+  setMarketVerification,
 } from './accounts';
 import {
   answerRemovalsOfSales,
@@ -209,14 +210,16 @@ export function marketSales(): MarketSale[] {
 }
 
 /**
- * Whether a sale record counts as a sale. A completed Buy Now sale is always
- * paid out, so one with no payout date isn't the account's sale: Afternic's
- * sales list includes the account's purchases, and that's how they look
- * (docs/afternic-api-issues.md, issue 1). Leases, sales still under way, and
- * cancelled ones have no payout date either and are kept.
+ * Whether a sale record counts as a sale. Afternic's sales list includes the
+ * account's purchases, and they look like a completed Buy Now sale with no
+ * payout date, which a sale of Afternic's always has (docs/afternic-api-issues.md,
+ * issue 1). Leases, sales still under way, and cancelled ones have no payout
+ * date either and are kept. Other markets' lists are sales only: SellerHub's
+ * sold report never has a payout date, Buy Now or not.
  */
 export function isShownSale(sale: MarketSale): boolean {
   return !(
+    sale.market === 'afternic' &&
     sale.status === 'completed' &&
     sale.kind === 'buy_now' &&
     !sale.paidOutOn
@@ -274,6 +277,7 @@ async function runMarketSync(accountId: string): Promise<void> {
   const notes = (previous?.notes ?? []).filter(
     (n) =>
       !n.startsWith('No search data on this account') &&
+      !n.startsWith('Dynadot API price level') &&
       !n.startsWith('Sedo’s API has no sales'),
   );
   let status = previous?.status ?? [];
@@ -289,6 +293,37 @@ async function runMarketSync(accountId: string): Promise<void> {
     const read = await adapter.allListings();
     const prefix = `${accountId}:`;
     const fresh = new Map(read.listings.map((l) => [prefix + l.name, l]));
+    // A market that won't take a listing until it has verified the name
+    // (Dynadot, for names held elsewhere): DomBot's pending listings go out
+    // now for the names it has verified since, and stay pending otherwise.
+    let verifying = 0;
+    if (adapter.listVerified) {
+      const waiting = Object.entries(listings.all())
+        .filter(
+          ([key, row]) =>
+            key.startsWith(prefix) &&
+            !fresh.has(key) &&
+            row.status === 'pending' &&
+            row.forSale,
+        )
+        .map(([, row]) => row);
+      if (waiting.length) {
+        const byName = new Map(waiting.map((row) => [row.name, row]));
+        for (const r of await adapter.listVerified(waiting)) {
+          // A check that failed (a network error, say) keeps DomBot's row
+          // as it is; only a name off the market's list (NOT_FOUND) is let
+          // go, to the clean-up below.
+          const row = r.ok
+            ? r.saved
+            : r.error?.code === 'NOT_FOUND'
+              ? null
+              : (byName.get(r.name) ?? null);
+          if (!row) continue;
+          fresh.set(prefix + r.name, row);
+          if (row.status === 'pending') verifying++;
+        }
+      }
+    }
     // A market that checks new listings before adding them (Sedo) leaves
     // them out of its list meanwhile: keep DomBot's pending row for a while,
     // then drop it and say so, since the market may have refused it.
@@ -305,7 +340,6 @@ async function runMarketSync(accountId: string): Promise<void> {
       }
     }
     // Names still in the market's ownership check stay pending.
-    let verifying = 0;
     if (caps.asyncInsert) {
       for (const [key, row] of fresh) {
         const held = holdPending(listings.get(key), row);
@@ -316,6 +350,16 @@ async function runMarketSync(accountId: string): Promise<void> {
       }
     }
     void listings.setMany([...fresh]);
+
+    // A market whose API gives the account's verification value (Dynadot)
+    // keeps it current, so there's nothing to paste. A failed read keeps
+    // what's saved.
+    if (adapter.verificationId) {
+      const id = await adapter.verificationId().catch(() => null);
+      if (id && id !== account.verificationId) {
+        await setMarketVerification(accountId, id);
+      }
+    }
 
     // Sales: all of history the first time, then a window back from the
     // newest, since a recent sale's status keeps moving.

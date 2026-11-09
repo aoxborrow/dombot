@@ -310,6 +310,12 @@ interface AppState {
   /** Every enabled market account is syncing (Sync now, or Settings →
    * Markets' Sync all); one account's own sync shows on its card alone. */
   marketsSyncing: boolean;
+  /**
+   * While a Sync runs: each account it covers, keyed `kind:id`, and its last
+   * attempt when the Sync began. Progress counts the accounts that have
+   * attempted since (lib/sync-state.ts).
+   */
+  syncBaseline: Record<string, number | null> | null;
   /** Sync every enabled market account, then reload what they hold. A failed
    * account records its error on its card; this throws only when an account
    * ran out of time (it carries on in the background) or the call failed. */
@@ -344,15 +350,6 @@ interface AppState {
   deleteUserEvent: (id: string) => Promise<void>;
   /** Delete: everything it holds about names no account holds. */
   deleteDomains: (domainNames: string[]) => Promise<void>;
-
-  // Row selection for bulk actions, keyed `${registrar}:${domainName}`. Lives
-  // here (not in the page) so it survives tab switches; pruned when the
-  // portfolio is replaced so vanished domains don't linger.
-  selected: Set<string>;
-  toggleSelected: (key: string) => void;
-  /** Add or remove many keys at once (the header checkbox). */
-  setSelectedMany: (keys: string[], on: boolean) => void;
-  clearSelection: () => void;
 
   // The bulk job (main owns it; this mirrors it). One at a time.
   bulk: BulkJob | null;
@@ -565,7 +562,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       enriching: {},
       pricing: {},
       detailAllLoading: false,
-      selected: new Set(),
     });
     // Imported names aren't cache: re-read their prices. Market listings
     // were cache: re-read what's left.
@@ -578,7 +574,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       const result = await withSyncTimeout(window.api.listPortfolio(true));
       // Fresh summary data invalidates any prior per-domain detail.
       resetEnrich();
-      const keys = new Set(result.domains.map(domainKey));
       set((state) => ({
         portfolio: result.domains,
         portfolioErrors: result.errors,
@@ -592,7 +587,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         enriching: {},
         pricing: {},
         detailAllLoading: false,
-        selected: new Set([...state.selected].filter((k) => keys.has(k))),
       }));
       // Per-registrar sync statuses changed — refresh the shared metadata, and
       // re-read the pricing map: the sync just refreshed renewal quotes and the
@@ -956,6 +950,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     return failed;
   },
   marketsSyncing: false,
+  syncBaseline: null,
   syncMarkets: async () => {
     set({ marketsSyncing: true });
     // One account at a time, as auto-sync does, each with its own time
@@ -1060,25 +1055,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     const mcpInfo = await window.api.getMcpInfo();
     set({ settings, mcpInfo });
   },
-  selected: new Set(),
-  toggleSelected: (key) =>
-    set((state) => {
-      const selected = new Set(state.selected);
-      if (selected.has(key)) selected.delete(key);
-      else selected.add(key);
-      return { selected };
-    }),
-  setSelectedMany: (keys, on) =>
-    set((state) => {
-      const selected = new Set(state.selected);
-      for (const k of keys) {
-        if (on) selected.add(k);
-        else selected.delete(k);
-      }
-      return { selected };
-    }),
-  clearSelection: () => set({ selected: new Set() }),
-
   bulk: null,
   startBulk: async (targets, op) => {
     const job = await window.api.startBulk(targets, op);

@@ -25,9 +25,16 @@ interface VerificationInfo {
   txt: (id: string) => string;
   /** A nameserver assigned to the account, set with the market's pair. */
   nameserver?: (id: string) => string;
+  /**
+   * The pair that goes with it, for a market that doesn't declare the pair
+   * as its own nameservers (Dynadot's is its everyday DNS).
+   */
+  pair?: readonly string[];
 }
 
 const HEX40 = /^[0-9a-f]{40}$/i;
+const HEX32 = /^[0-9a-f]{32}$/i;
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
 const VERIFICATION: Record<MarketId, VerificationInfo> = {
   afternic: {
@@ -51,11 +58,37 @@ const VERIFICATION: Record<MarketId, VerificationInfo> = {
     parse: (value) => (HEX40.test(value) ? value.toLowerCase() : null),
     txt: (id) => id,
   },
+  // One Open Marketplace Key per account (seen in the dashboard, 2026-11-03),
+  // for names held at other registrars. Sync reads it from the API.
+  dynadot: {
+    term: 'Open Marketplace Key',
+    url: 'https://www.dynadot.com/help/question/open-marketplace',
+    path: 'My Domains → Manage Domains → Other Registrar → Unverified',
+    parse: (value) =>
+      (HEX32.test(value) ? value : null)?.toLowerCase() ??
+      /^ns3-([0-9a-f]{32})\.dyna-ns\.org$/i.exec(value)?.[1].toLowerCase() ??
+      /^ns1-([0-9a-f]{32})\.dyna-ns\.net$/i.exec(value)?.[1].toLowerCase() ??
+      null,
+    txt: (id) => id,
+    nameserver: (id) => normalizeNameserver(`ns3-${id}.dyna-ns.org`),
+    pair: ['ns1.dyna-ns.net', 'ns2.dyna-ns.net'],
+  },
   sedo: {
     term: 'Domain Ownership Verification ID',
     url: 'https://sedo.com/member/ownership_verification.php',
     path: 'My Domains → Domain Ownership Verification',
     parse: (value) => (HEX40.test(value) ? value.toLowerCase() : null),
+    txt: (id) => id,
+  },
+  // One TXT record at the apex per account, a UUID (read through the API,
+  // 2026-11-07). Sync fills it in from SellerHub's verification records, so
+  // a paste is rarely needed. UNVERIFIED: the dashboard's own wording and
+  // page (the URL is the SellerHub app, behind Spaceship's login).
+  spaceship: {
+    term: 'Verification record',
+    url: 'https://www.spaceship.com/application/sellerhub/',
+    path: 'SellerHub’s TXT verification record, filled in when the account syncs',
+    parse: (value) => UUID.exec(value)?.[0].toLowerCase() ?? null,
     txt: (id) => id,
   },
 };
@@ -123,7 +156,8 @@ export function verificationNameservers(
   id: string | null,
 ): string[] {
   const own = verificationNameserver(info.id, id);
-  return [...defaultMarketNameservers(info), ...(own ? [own] : [])];
+  const pair = VERIFICATION[info.id].pair ?? defaultMarketNameservers(info);
+  return [...pair, ...(own ? [own] : [])];
 }
 
 /**

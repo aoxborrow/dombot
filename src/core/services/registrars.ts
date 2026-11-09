@@ -37,6 +37,8 @@ import { serialByKey } from './serial-by-key';
 import { getStoredCredentials, setStoredCredentials } from './credentials';
 import { errorSummary } from './error-summary';
 import { createProxiedRegistrar } from './proxy-transport';
+import { dynadotPacedFetch } from '../markets/dynadot';
+import { removeMarketAccountsOf } from './markets/accounts';
 import { consentIp } from './consent-ip';
 import { recordsPrivacyConsent } from '../../shared/domain-ops';
 import { accountProxyRoute, getProxyProfile } from './proxies';
@@ -233,9 +235,18 @@ function buildProvider(
   proxy: ProxyRoute | null,
 ): Registrar {
   if (factory) return factory(name, credentials, accountId);
+  // A Dynadot key's calls share one budget with its marketplace account's
+  // (docs/dynadot-marketplace-api.md, "Credentials").
+  const pace =
+    name === 'dynadot'
+      ? (inner?: typeof fetch) => dynadotPacedFetch(accountId, inner)
+      : null;
   return proxy
-    ? createProxiedRegistrar(name, credentials, proxy)
-    : createRegistrar(name, credentials, { timeout: API_TIMEOUT_MS });
+    ? createProxiedRegistrar(name, credentials, proxy, pace)
+    : createRegistrar(name, credentials, {
+        timeout: API_TIMEOUT_MS,
+        ...(pace && { fetch: pace() }),
+      });
 }
 const clientCredentials = new Map<string, string>();
 const generations = new Map<string, number>();
@@ -1169,6 +1180,8 @@ export async function setRegistrarEnabledCached(
 
 export async function removeRegistrarAccount(accountId: string): Promise<void> {
   accountById(accountId);
+  // A market account on this account's key (Dynadot's) goes with it.
+  await removeMarketAccountsOf(accountId);
   invalidateAccount(accountId);
   await setStoredCredentials(accountId, {});
   clearRegistrarData(accountId);

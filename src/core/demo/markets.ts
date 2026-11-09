@@ -16,12 +16,14 @@ import type {
 import { SEARCH_DATA_FLAG } from '../../shared/markets';
 import { AFTERNIC_CAPABILITIES } from '../services/markets/afternic';
 import { ATOM_CAPABILITIES } from '../services/markets/atom';
+import { DYNADOT_CAPABILITIES } from '../services/markets/dynadot';
 import type { AnyMarketAdapter } from '../services/markets/registry';
 import { SEDO_CAPABILITIES } from '../services/markets/sedo';
+import { SPACESHIP_CAPABILITIES } from '../services/markets/spaceship';
 import { pick, rng, type DemoAskingPrice } from './seed';
 
-// The demo's marketplaces: an Afternic, a Sedo and an Atom account over one
-// in-memory world, so the Markets page, the listing columns, the listing
+// The demo's marketplaces: an Afternic, a Sedo, an Atom and a Dynadot account
+// over one in-memory world, so the Markets page, the listing columns, the listing
 // editor and the bell have something real-looking to show without a key.
 // Writes change the world the way each market would, within its
 // capabilities: Sedo holds a new name pending, Afternic caps lease months by
@@ -30,7 +32,9 @@ import { pick, rng, type DemoAskingPrice } from './seed';
 const CAPABILITIES: Record<MarketId, MarketCapabilities> = {
   afternic: AFTERNIC_CAPABILITIES,
   atom: ATOM_CAPABILITIES,
+  dynadot: DYNADOT_CAPABILITIES,
   sedo: SEDO_CAPABILITIES,
+  spaceship: SPACESHIP_CAPABILITIES,
 };
 
 const DAY = 86_400_000;
@@ -53,6 +57,10 @@ export class DemoMarketWorld {
   readonly sales = new Map<string, MarketSale[]>();
   readonly settings = new Map<string, AfternicAccountSettings>();
   readonly market = new Map<string, MarketId>();
+  /** Names the demo's Dynadot registrar account holds. */
+  heldAtDynadot: (name: string) => boolean = () => false;
+  /** Names the demo's Spaceship registrar account holds. */
+  heldAtSpaceship: (name: string) => boolean = () => false;
   constructor(readonly now: number = Date.now()) {}
 
   account(id: string): Map<string, MarketListing> {
@@ -107,6 +115,10 @@ function refusal(
   }
   if (market === 'sedo' && price && currency !== 'GBP' && Number(price) < 199)
     return `Sedo needs a Buy Now price of at least 199 ${currency}.`;
+  if (market === 'dynadot' && change.forSale === false)
+    return 'Dynadot has no hidden listings; delist instead.';
+  if (market === 'spaceship' && change.forSale === false)
+    return 'SellerHub’s API can’t pause a sale; delist instead.';
   return null;
 }
 
@@ -184,6 +196,43 @@ export class DemoMarketAdapter {
       if (change.floor !== undefined) next.floor = change.floor;
       if (change.forSale !== undefined && next.status !== 'pending')
         next.forSale = change.forSale;
+      // Dynadot lists a name held elsewhere only once it has verified it:
+      // a new one is added to its list and stays pending meanwhile. A
+      // listed name's minimum offer never shows.
+      if (
+        this.market === 'dynadot' &&
+        !current &&
+        !this.world.heldAtDynadot(name)
+      ) {
+        Object.assign(next, {
+          status: 'pending',
+          statusRaw: 'Buy Now · Unverified',
+          extra: {
+            ...next.extra,
+            held: 'elsewhere',
+            listingId: null,
+            offers: false,
+            verified: false,
+          },
+        });
+      }
+      if (this.market === 'dynadot' && next.status !== 'pending')
+        next.minOffer = null;
+      // SellerHub takes a name held outside the Spaceship account and
+      // checks its TXT record before it goes on sale.
+      if (this.market === 'spaceship' && !current) {
+        const home = this.world.heldAtSpaceship(name);
+        Object.assign(next, {
+          status: home ? 'active' : 'pending',
+          statusRaw: home ? 'onSale' : 'verifying',
+          forSale: home,
+          extra: {
+            market: 'spaceship',
+            held: home ? 'spaceship' : 'elsewhere',
+            description: null,
+          },
+        });
+      }
       const adjusted: MarketWriteResult['adjusted'] = [];
       if (change.leaseToOwn) {
         const asked = change.leaseToOwn.maxPayments;
@@ -304,6 +353,21 @@ export class DemoMarketAdapter {
 
   async verifyDns(name: string): Promise<MarketWriteResult> {
     const key = name.toLowerCase();
+    // Dynadot checks a list of names whenever it's asked.
+    if (this.market === 'dynadot') {
+      const l = this.mine.get(key);
+      if (l?.extra.market === 'dynadot' && l.extra.verified === false) {
+        this.mine.set(key, {
+          ...l,
+          status: 'active',
+          statusRaw: 'Buy Now · Verified',
+          forSale: true,
+          minOffer: null,
+          extra: { ...l.extra, verified: true },
+        });
+      }
+      return ok(this.mine.get(key) ?? null, key);
+    }
     const last = dnsChecks.get(this.accountId);
     if (last !== undefined && Date.now() - last < 12 * 60 * 60 * 1000) {
       return refused(
@@ -422,6 +486,19 @@ function extraFor(
           }
         : null,
     };
+  if (market === 'dynadot')
+    return {
+      market: 'dynadot',
+      held: 'dynadot',
+      listingId: String(21000000 + (h % 900000)),
+      offers: h % 2 === 0,
+      pendingSale: false,
+      verified: null,
+      registrar: null,
+      transferStatus: null,
+    };
+  if (market === 'spaceship')
+    return { market: 'spaceship', held: null, description: null };
   if (market === 'sedo')
     return {
       market: 'sedo',
@@ -467,6 +544,24 @@ export const DEMO_MARKET_ACCOUNTS = [
     label: 'Atom',
     credentials: { apiToken: 'demo-token', userId: '1234567' },
     verification: 'de30de30de30de30de30de30de30de30de30de30',
+  },
+  {
+    id: 'demo-dynadot',
+    market: 'dynadot',
+    label: 'Dynadot',
+    // None of its own: it uses the demo's Dynadot registrar account's key.
+    credentials: {},
+    registrarAccountId: 'dynadot',
+    verification: 'de30de30de30de30de30de30de30de30',
+  },
+  {
+    id: 'demo-spaceship',
+    market: 'spaceship',
+    label: 'Spaceship',
+    // None of its own: it uses the demo's Spaceship registrar account's key.
+    credentials: {},
+    registrarAccountId: 'spaceship',
+    verification: 'de30de30-de30-4e30-8e30-de30de30de30',
   },
 ] as const;
 
@@ -524,10 +619,16 @@ export function seedDemoMarkets(
   givesAuthCode: (name: string) => boolean = () => true,
   /** Names whose registrar can approve a transfer-out. */
   approvesTransfer: (name: string) => boolean = () => true,
+  /** Names the demo's Dynadot registrar account holds. */
+  heldAtDynadot: (name: string) => boolean = () => false,
+  /** Names the demo's Spaceship registrar account holds. */
+  heldAtSpaceship: (name: string) => boolean = () => false,
   seed = 7,
 ): void {
   const r = rng(seed);
   const now = world.now;
+  world.heldAtDynadot = heldAtDynadot;
+  world.heldAtSpaceship = heldAtSpaceship;
   for (const a of DEMO_MARKET_ACCOUNTS) world.market.set(a.id, a.market);
   const listed = (
     accountId: string,
@@ -621,6 +722,56 @@ export function seedDemoMarkets(
       listed('demo-sedo', 'sedo', name, at, asking[name]);
       listed('demo-atom', 'atom', name, at, asking[name]);
     }
+    // Dynadot: names its registrar account holds, and names held elsewhere
+    // listed through its open marketplace, a few still being verified.
+    if (share >= 0.25 && share < 0.55) {
+      listed('demo-dynadot', 'dynadot', name, at, asking[name]);
+      const l = world.account('demo-dynadot').get(name);
+      if (l?.extra.market === 'dynadot') {
+        const home = heldAtDynadot(name);
+        const pending = !home && l.status === 'pending';
+        world.account('demo-dynadot').set(name, {
+          ...l,
+          status: pending ? 'pending' : 'active',
+          statusRaw: home
+            ? l.extra.offers
+              ? 'BIN_MAKE_OFFER'
+              : 'BIN'
+            : `Buy Now · ${pending ? 'Unverified' : 'Verified'}`,
+          // A pending one is DomBot's, held until Dynadot verifies the name.
+          forSale: true,
+          minOffer: pending ? l.minOffer : null,
+          listedAt: home ? null : l.listedAt,
+          extra: {
+            ...l.extra,
+            held: home ? 'dynadot' : 'elsewhere',
+            listingId: home ? l.extra.listingId : null,
+            verified: home ? null : !pending,
+          },
+        });
+      }
+    }
+    // SellerHub: names its registrar account holds, and names held
+    // elsewhere, a few still being verified.
+    if (share >= 0.1 && share < 0.3) {
+      listed('demo-spaceship', 'spaceship', name, at, asking[name]);
+      const l = world.account('demo-spaceship').get(name);
+      if (l) {
+        const home = heldAtSpaceship(name);
+        const pending = !home && l.status === 'pending';
+        world.account('demo-spaceship').set(name, {
+          ...l,
+          status: pending ? 'pending' : 'active',
+          statusRaw: pending ? 'verifying' : 'onSale',
+          forSale: !pending,
+          extra: {
+            market: 'spaceship',
+            held: home ? 'spaceship' : 'elsewhere',
+            description: null,
+          },
+        });
+      }
+    }
   });
 
   const held = new Set(names);
@@ -631,14 +782,20 @@ export function seedDemoMarkets(
       name = `${pick(r, SOLD_FIRST)}${pick(r, SOLD_SECOND)}.${pick(r, ['com', 'com', 'com', 'io', 'co'])}`;
     } while (held.has(name) || soldNames.has(name));
     soldNames.add(name);
-    const market: MarketId = i % 6 === 5 ? 'atom' : 'afternic';
+    // SellerHub only lately: it opened in 2025.
+    const market: MarketId =
+      i % 6 === 5
+        ? 'atom'
+        : i % 6 === 2 && i < SOLD_COUNT / 5
+          ? 'spaceship'
+          : 'afternic';
     const amount = pick(r, SOLD_PRICES);
     // Spread over the years, a little uneven.
     const daysAgo = Math.round(
       ((i + 0.5 + (r() - 0.5) * 0.8) / SOLD_COUNT) * 365 * SOLD_YEARS,
     );
     const accountId = `demo-${market}`;
-    const rate = market === 'atom' ? 0.15 : 0.2;
+    const rate = market === 'atom' ? 0.15 : market === 'spaceship' ? 0.1 : 0.2;
     const sales = world.sales.get(accountId) ?? [];
     sales.push({
       market,
@@ -647,15 +804,19 @@ export function seedDemoMarkets(
       name,
       soldOn: isoDay(now - daysAgo * DAY),
       status: 'completed',
-      statusRaw: 'COMPLETED',
-      kind: 'buy_now',
+      statusRaw: market === 'spaceship' ? 'sold · forSalePage' : 'COMPLETED',
+      kind: market === 'spaceship' ? 'unknown' : 'buy_now',
       price: String(amount),
       commission: String(amount * rate),
       commissionEstimated: market === 'atom',
       net: String(amount * (1 - rate)),
       currency: 'USD',
       installments: null,
-      paidOutOn: isoDay(now - Math.max(0, daysAgo - 12) * DAY),
+      // SellerHub's sold report has no payout date.
+      paidOutOn:
+        market === 'spaceship'
+          ? null
+          : isoDay(now - Math.max(0, daysAgo - 12) * DAY),
       action: null,
     });
     world.sales.set(accountId, sales);

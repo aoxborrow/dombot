@@ -11,6 +11,7 @@ import {
 } from '../services/markets/sync';
 import {
   setSaleAuthCode,
+  verifyMarketDns,
   writeMarketListings,
 } from '../services/markets/writes';
 import { installDemo, uninstallDemo, type DemoInstallation } from './index';
@@ -29,12 +30,12 @@ beforeEach(async () => {
 afterEach(() => uninstallDemo());
 
 describe('demo markets', () => {
-  it('lists the names priced in DomBot: half on all three, most on Afternic', () => {
+  it('lists the names priced in DomBot: half on Sedo and Atom, most on Afternic', () => {
     expect(
       marketAccountViews()
         .map((a) => a.market)
         .sort(),
-    ).toEqual(['afternic', 'atom', 'sedo']);
+    ).toEqual(['afternic', 'atom', 'dynadot', 'sedo', 'spaceship']);
     const priced = Object.keys(demo.seed.askingPrices);
     expect(priced.length).toBe(Math.round((240 * 2) / 3));
     const on = (m: string) =>
@@ -53,6 +54,14 @@ describe('demo markets', () => {
     expect(sedo.size).toBe(Math.round(priced.length * 0.5));
     expect([...sedo]).toEqual([...atom].filter((n) => sedo.has(n)));
     expect(atom.size).toBe(sedo.size);
+    // Dynadot: a share of the priced names, both those its registrar
+    // account holds and names held elsewhere.
+    const dynadot = marketListings().filter((l) => l.market === 'dynadot');
+    expect(dynadot.length).toBe(Math.round(priced.length * 0.3));
+    const held = new Set(
+      dynadot.map((l) => (l.extra.market === 'dynadot' ? l.extra.held : '')),
+    );
+    expect(held).toEqual(new Set(['dynadot', 'elsewhere']));
     // Some market prices differ from DomBot's.
     const differs = marketListings().filter(
       (l) => l.price && l.price !== demo.seed.askingPrices[l.name].amount,
@@ -136,5 +145,23 @@ describe('demo markets', () => {
       { name: 'cheap-name.com', price: '50' },
     ]);
     expect(atom.ok).toBe(false);
+  });
+
+  it('holds a Dynadot listing pending until Dynadot verifies the name', async () => {
+    const [r] = await writeMarketListings('demo-dynadot', [
+      { name: 'held-elsewhere.com', price: '2500' },
+    ]);
+    expect(r).toMatchObject({
+      ok: true,
+      pending: true,
+      saved: { status: 'pending', extra: { held: 'elsewhere' } },
+    });
+    // A new price while it waits is still pending, not an error.
+    const [again] = await writeMarketListings('demo-dynadot', [
+      { name: 'held-elsewhere.com', price: '2000' },
+    ]);
+    expect(again).toMatchObject({ ok: true, pending: true });
+    const checked = await verifyMarketDns('demo-dynadot', 'held-elsewhere.com');
+    expect(checked.saved).toMatchObject({ status: 'active', price: '2000' });
   });
 });

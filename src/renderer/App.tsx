@@ -282,6 +282,7 @@ function MobileNav() {
   const {
     sync,
     syncing,
+    syncingShort,
     disabled: syncDisabled,
     title: syncTitle,
   } = useSyncState();
@@ -341,7 +342,7 @@ function MobileNav() {
               <RefreshCw
                 className={cn('size-4 shrink-0', syncing && 'animate-spin')}
               />
-              {syncing ? 'Syncing…' : 'Sync'}
+              {syncing ? syncingShort : 'Sync'}
             </DropdownMenuItem>
           </>
         )}

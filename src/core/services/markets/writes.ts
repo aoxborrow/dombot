@@ -85,10 +85,18 @@ async function inBatches<T>(
  */
 export async function writeMarketListings(
   accountId: string,
-  changes: readonly MarketListingChange[],
+  asked: readonly MarketListingChange[],
   options: WriteOptions = {},
 ): Promise<MarketWriteResult[]> {
   const adapter = enabledAdapter(accountId);
+  // A market that won't take a listing until it has verified the name
+  // (Dynadot) has nothing of a pending one: DomBot's row is the listing, so
+  // a change to it keeps what it doesn't give.
+  const changes = adapter.listVerified
+    ? asked.map((c) =>
+        withPendingListing(c, cachedListing(accountId, toAscii(c.name))),
+      )
+    : asked;
   const skipped = new Map<string, MarketWriteResult>();
   const toSend = options.skipUnchanged
     ? changes.filter((c) => {
@@ -140,6 +148,27 @@ export async function writeMarketListings(
 }
 
 /**
+ * A change to a pending listing DomBot holds, with the price, minimum offer
+ * and currency it leaves out taken from the pending row.
+ */
+export function withPendingListing(
+  change: MarketListingChange,
+  pending: MarketListing | undefined,
+): MarketListingChange {
+  if (pending?.status !== 'pending' || !pending.forSale) return change;
+  return {
+    ...change,
+    price: change.price !== undefined ? change.price : pending.price,
+    minOffer:
+      change.minOffer !== undefined ? change.minOffer : pending.minOffer,
+    currency:
+      change.currency ??
+      (pending.currency as MarketListingChange['currency']) ??
+      undefined,
+  };
+}
+
+/**
  * Whether a synced listing already has every value a change asks for. Only
  * the shared fields and the market's own settings that a listing carries
  * are compared; anything else counts as a change.
@@ -171,6 +200,12 @@ export function matches(
       same(extra.tier, listing.tier) &&
       same(extra.category, listing.extra.category) &&
       same(extra.description?.trim(), listing.extra.description)
+    );
+  }
+  if (extra.market === 'spaceship' && listing.extra.market === 'spaceship') {
+    return (
+      extra.description === undefined ||
+      same(extra.description.trim() || null, listing.extra.description)
     );
   }
   // Other markets' settings aren't all on the listing: always send.
@@ -530,6 +565,36 @@ export async function setMarketDiscount(
   return result;
 }
 
+/**
+ * After an Ownership verification TXT job: each market that won't list a
+ * name until it has verified it (Dynadot) checks the job's names it holds
+ * pending now, and lists those it verifies. A name it can't verify yet
+ * stays pending for the next sync.
+ */
+export async function listVerifiedListings(
+  names: readonly string[],
+): Promise<void> {
+  const wanted = new Set(names.map((n) => toAscii(n)));
+  for (const account of activeMarketAccounts()) {
+    const adapter = marketAdapter(account.id);
+    if (!adapter.listVerified) continue;
+    const rows = marketListings().filter(
+      (l) =>
+        l.accountId === account.id &&
+        l.status === 'pending' &&
+        l.forSale &&
+        wanted.has(l.name),
+    );
+    if (!rows.length) continue;
+    const results = await adapter.listVerified(rows);
+    putMarketListings(
+      account.id,
+      results.flatMap((r) => (r.ok && r.saved ? [r.saved] : [])),
+    );
+  }
+  broadcastPortfolioChanged();
+}
+
 /** Ask the market to check a name's DNS now (Atom's verify). */
 export async function verifyMarketDns(
   accountId: string,
@@ -539,8 +604,21 @@ export async function verifyMarketDns(
   if (!adapter.capabilities.verifyDns || !adapter.verifyDns) {
     throw new Error(`DNS verification is not supported for ${adapter.market}.`);
   }
-  const result = await adapter.verifyDns(toAscii(name));
+  const key = toAscii(name);
+  let result = await adapter.verifyDns(key);
   if (result.ok && result.saved) putMarketListings(accountId, [result.saved]);
+  // A market that won't take a listing until it has verified the name
+  // (Dynadot) gets DomBot's pending listing now, if it has.
+  const cached = cachedListing(accountId, key);
+  if (result.ok && adapter.listVerified && cached?.status === 'pending') {
+    const [listed] = await adapter.listVerified([cached]);
+    if (listed) {
+      if (listed.ok && listed.saved) {
+        putMarketListings(accountId, [listed.saved]);
+      }
+      result = listed;
+    }
+  }
   broadcastPortfolioChanged();
   return result;
 }

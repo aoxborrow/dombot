@@ -96,6 +96,9 @@ import {
 } from './portfolio-query';
 import { registerMarketTools } from './market-tools';
 import { marketListings, marketSales } from '../services/markets/sync';
+import { exchangeRates } from '../services/exchange-rates';
+import type { MarketListing } from '../../shared/markets';
+import { listedPriceFor } from '../../shared/listed-prices';
 import { marketAccountViews } from '../services/markets/accounts';
 import { marketCatalog } from '../services/markets/registry';
 
@@ -430,13 +433,13 @@ const queryShape = {
       'Only domains with a nameserver containing this substring (case-insensitive). Needs the domain enriched with detail; un-enriched domains without list nameservers are excluded.',
     ),
   listedOn: z
-    .enum(['afternic', 'atom', 'sedo'])
+    .enum(['afternic', 'atom', 'dynadot', 'sedo', 'spaceship'])
     .optional()
     .describe(
       'Only names listed on this market (any listing status), as of the last market_sync.',
     ),
   notListedOn: z
-    .enum(['afternic', 'atom', 'sedo'])
+    .enum(['afternic', 'atom', 'dynadot', 'sedo', 'spaceship'])
     .optional()
     .describe(
       'Only names not listed on this market: the ones you could list there.',
@@ -684,13 +687,18 @@ function localWrite<T>(result: T) {
 
 /** The normalized name, or an error when DomBot doesn't know it: not synced,
  *  not imported, and with no history. */
-function assertInPortfolio(domain: string): string {
-  const key = assertDomainName(domain);
-  const known =
+/** Whether DomBot knows `key`: a registrar holds it, you imported it, or it has history. */
+function inPortfolio(key: string): boolean {
+  return (
     getMergedPortfolio().domains.some((d) => toAscii(d.domainName) === key) ||
     Object.hasOwn(getImportedDomains(), key) ||
-    eventsFor(key).length > 0;
-  if (!known) {
+    eventsFor(key).length > 0
+  );
+}
+
+function assertInPortfolio(domain: string): string {
+  const key = assertDomainName(domain);
+  if (!inPortfolio(key)) {
     throw new Error(
       `"${domain}" isn't in your portfolio. Run portfolio_sync if it was added recently.`,
     );
@@ -1356,6 +1364,92 @@ export function registerTools(server: McpServer): void {
               currency: saved.currency,
             }
           : null,
+      });
+    },
+  );
+
+  server.registerTool(
+    'portfolio_asking_prices_import',
+    {
+      title: 'Import asking prices from market listings',
+      description:
+        'Copy what a marketplace lists names for — its BIN price, minimum offer and floor — into your DomBot asking prices (the app’s "Price from listings"), so you can price in DomBot from then on and push them out with market_listings_set. `source` is one market, or `highest` for whichever listing is highest (BIN, then minimum offer, then floor, compared in USD). The winning listing sets the BIN price and currency; a minimum offer or floor it lacks is filled from the name’s other listings (the highest not above the BIN price). Amounts are rounded to whole amounts; a minimum offer or floor above the BIN price is dropped. Names that already have an asking price keep it unless `replace` is true. Only names in your portfolio (registrar, imported or in history) get a price, as in the app; a market listing for a name DomBot doesn’t otherwise know is counted in `notInPortfolio`, not imported. Reads the listings DomBot last synced (run market_sync first for fresh ones). DomBot-local — no marketplace call.',
+      inputSchema: {
+        domains: z
+          .array(z.string())
+          .min(1)
+          .max(5000)
+          .optional()
+          .describe(
+            'The names to import for, each in your portfolio. Omit for every portfolio name with a listed price.',
+          ),
+        source: z
+          .enum(['highest', 'afternic', 'atom', 'dynadot', 'sedo', 'spaceship'])
+          .default('highest')
+          .describe('The market to copy from, or `highest` (default).'),
+        replace: z
+          .boolean()
+          .default(false)
+          .describe('Replace asking prices you already set (default false).'),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ domains: names, source = 'highest', replace = false }) => {
+      const byName = new Map<string, MarketListing[]>();
+      for (const l of marketListings()) {
+        const key = toAscii(l.name);
+        byName.set(key, [...(byName.get(key) ?? []), l]);
+      }
+      // Portfolio names only, like the app's dialog: a name known only from
+      // a listing has no row to show its asking price on.
+      const listedKeys = [...byName.keys()];
+      const keys = names
+        ? [...new Set(names.map(assertInPortfolio))]
+        : listedKeys.filter(inPortfolio);
+      const notInPortfolio = names ? 0 : listedKeys.length - keys.length;
+      const rates = exchangeRates();
+      const current = getListPrices();
+      const imported: { domain: string; market: string }[] = [];
+      const kept: string[] = [];
+      const unlisted: string[] = [];
+      const inputs: Parameters<typeof setListPrices>[0] = [];
+      for (const key of keys) {
+        const price = listedPriceFor(byName.get(key), source, rates);
+        if (!price) {
+          unlisted.push(key);
+          continue;
+        }
+        if (current[key] && !replace) {
+          kept.push(key);
+          continue;
+        }
+        inputs.push({
+          domainName: key,
+          amount: price.amount,
+          minOffer: price.minOffer,
+          floor: price.floor,
+          currency: price.currency,
+        });
+        imported.push({ domain: key, market: price.market });
+      }
+      if (inputs.length > 0) setListPrices(inputs);
+      const saved = getListPrices();
+      return localWrite({
+        imported: imported.map(({ domain, market }) => ({
+          domain,
+          market,
+          askingPrice: saved[domain]
+            ? {
+                amount: saved[domain].amount,
+                minOffer: saved[domain].minOffer ?? null,
+                floor: saved[domain].floor ?? null,
+                currency: saved[domain].currency,
+              }
+            : null,
+        })),
+        kept,
+        notListed: unlisted,
+        notInPortfolio,
       });
     },
   );

@@ -151,6 +151,16 @@ portfolio: synced, imported, or with history.
   `currency?`. Replaces the asking price: what's left out is cleared, and all
   three left out removes it. `currency` is required unless clearing. Returns
   `{ domain, askingPrice }`.
+- **`portfolio_asking_prices_import`** — `domains?` (default: every portfolio name
+  with a listed price), `source?` (`highest`, the default, or a market id),
+  `replace?` (default `false`). Portfolio names only, as in the app;
+  listings for other names are counted in `notInPortfolio`. Copies a market listing's BIN price, minimum
+  offer and floor into the asking price, as the app's Price from listings
+  does: `highest` takes the highest listing (BIN, then minimum offer, then
+  floor, in USD) for the BIN price and currency, a minimum offer or floor it
+  lacks is filled from the other listings, amounts are rounded to whole, and
+  one above the BIN price is dropped. Names with an asking price keep it unless `replace`. Returns
+  `{ imported: [{ domain, market, askingPrice }], kept, notListed }`.
 - **`domain_renewal_price_set`** — `amount` (`null` clears it), `currency?`
   (default `USD`). Your yearly price, which `domain_renewal_price` then
   reports with source `manual`. Returns `{ domain, renewalPrice }`.
@@ -254,6 +264,8 @@ saying so.
   the account's NS3), and the market's `capabilities`. No secrets.
 - **`market_sync`** — `accountId?`. Re-reads listings, sales and stats from
   one account or every enabled one. Completed sales become `sold` events.
+  Not marked read-only: a Dynadot listing DomBot holds until Dynadot
+  verifies the name goes out during the sync once it has.
 - **`market_listings`** — your listings across accounts: filter by `market`,
   `accountId`, `status[]`, `forSale`, `nameContains`, `tld`, `priceMin`,
   `priceMax`; `sort` by `name`, `price`, `status`, `listedAt` or
@@ -301,9 +313,11 @@ decimal strings or numbers.
   `price` (the Buy Now price; null: offers only), `minOffer`,
   `floor` (null clears), `currency`, `forSale`, `leaseToOwn`, `afternic`
   (lander settings), `sedo` (`categories`, `language`), `atom` (`tier` for
-  a new listing, Standard or Plus; `category`; `description`). Lists the
-  name if it isn't listed. On Sedo a new listing comes back `pending` until
-  Sedo's checks pass. Atom takes one whole-dollar price of $100 or more
+  a new listing, Standard or Plus; `category`; `description`), `spaceship`
+  (`description`). Lists the name if it isn't listed. On Sedo a new listing
+  comes back `pending` until Sedo's checks pass, and on Spaceship SellerHub a
+  name held outside the Spaceship account until SellerHub has checked its
+  TXT record. Atom takes one whole-dollar price of $100 or more
   (or null, Make an Offer) and rejects `minOffer` and `floor`. `fromAskingPrice: true` takes the prices from DomBot's
   asking price instead. `accountId` can be left out when the name is listed
   in one account or there's only one.

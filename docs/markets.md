@@ -12,6 +12,13 @@ bulk writes, MCP). Each market's own API, quirks and client are in its plan:
 - [sedo-api.md](sedo-api.md): client and adapter built
   (`src/core/markets/sedo/`, `src/core/services/markets/sedo.ts`), verified
   live (reads and writes).
+- [dynadot-marketplace-api.md](dynadot-marketplace-api.md): reads built, on the
+  Dynadot registrar account's key; sells names held at Dynadot and at
+  other registrars.
+- [sellerhub-api.md](sellerhub-api.md): Spaceship SellerHub, client and
+  adapter built (`src/core/markets/spaceship/`,
+  `src/core/services/markets/spaceship.ts`) on the Spaceship registrar
+  account's key; reads verified live, writes not yet.
 
 Atom's and Sedo's plans each proposed a first cut of shared types. This doc
 replaces both; where they disagreed, the choice and the reason are below.
@@ -39,7 +46,7 @@ capability flags.
 `src/core/markets/types.ts`, abridged; the file is the reference.
 
 ```ts
-type MarketId = 'afternic' | 'atom' | 'sedo';
+type MarketId = 'afternic' | 'atom' | 'dynadot' | 'sedo';
 
 /** Canonical decimal strings, as DomBot's ListPrice ("2500", "1479.09"). */
 type Amount = string;
@@ -279,9 +286,9 @@ Following docs/storage-model.md:
   namespaces it lists, so `market-credentials` goes in that set, and data
   bundles treat it like `registrar-credentials`.
 - **`registrarAccountId`** (from the Atom plan) lets a market account borrow a
-  registrar account's key when one provider is both (AtomRegistrar, later
-  Dynadot and Namecheap). The field is in the record from the start; the
-  Settings flow for it comes with the first such market.
+  registrar account's key when one provider is both. Dynadot built the
+  Settings flow (docs/dynadot-marketplace-api.md); Spaceship SellerHub
+  (docs/sellerhub-api.md) is next, then AtomRegistrar and Namecheap.
 - **Sales become `sold` events.** A completed sale writes one `sold` event
   (source `sync`, date `soldOn`, amount `price`, `currency`), and so does one
   whose name has moved: the market is on to the payout (`action: 'payout'`)
@@ -910,6 +917,9 @@ a person (a sale message) says so in its description.
 5. **Ownership verification** for every market: settings, Apply and Request
    built; choosing a method when listing and tracking come next (see
    Ownership verification, "Build order").
+6. **Spaceship SellerHub** (built, reads verified live): on the Spaceship
+   registrar account's key, as Dynadot's market is on Dynadot's; see
+   docs/sellerhub-api.md.
 
 ## Open questions
 

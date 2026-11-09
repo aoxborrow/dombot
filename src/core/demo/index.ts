@@ -157,6 +157,8 @@ export async function installDemo(
     seed.askingPrices,
     (name) => authCodeNames.has(name),
     approvesTransfer,
+    (name) => world.get(name)?.registrar === 'dynadot',
+    (name) => world.get(name)?.registrar === 'spaceship',
   );
   // The sale at its transfer step: the buyer's registrar has asked for the
   // name, and its registrar holds it for you to answer (Approve transfer).
@@ -182,7 +184,13 @@ export async function installDemo(
   const connected = new Set(marketAccountViews().map((a) => a.id));
   for (const a of DEMO_MARKET_ACCOUNTS) {
     if (connected.has(a.id)) continue;
-    await connectMarketAccount(a.market, { ...a.credentials }, a.label, a.id);
+    await connectMarketAccount(
+      a.market,
+      { ...a.credentials },
+      a.label,
+      a.id,
+      'registrarAccountId' in a ? a.registrarAccountId : undefined,
+    );
     if ('verification' in a) await setMarketVerification(a.id, a.verification);
   }
 
