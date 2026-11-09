@@ -31,6 +31,20 @@ export interface RegistrarHelp {
   optional?: { title: string; summary: string };
 }
 
+/**
+ * A connection test's failure message, with a hint where the registrar's error
+ * misleads. Namefi answers an invalid API key with a server error, not a 401.
+ */
+export function connectFailureMessage(
+  registrar: RegistrarName,
+  message: string,
+  status?: number,
+): string {
+  return registrar === 'namefi' && status !== undefined && status >= 500
+    ? `${message}. Namefi also returns this for an invalid API key, so check the key first.`
+    : message;
+}
+
 // Exhaustive over RegistrarName so adding a registrar to the library forces a
 // help entry here (the build fails until one is written).
 export const REGISTRAR_HELP: Record<RegistrarName, RegistrarHelp> = {

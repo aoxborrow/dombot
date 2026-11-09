@@ -58,7 +58,8 @@ browser on an invented portfolio, no install and no account.
 ## Configuring registrars
 
 DomBot currently supports **GoDaddy, Cloudflare, Dynadot, NameSilo, Spaceship,
-Namecheap, Porkbun, Gandi, and NameBright**, with more on the way.
+Namecheap, Porkbun, Gandi, NameBright, Name.com, 101domain, Unstoppable, and
+Namefi**, with more on the way.
 
 Add each registrar in **Settings → Registrars** with an API key from that
 provider's account — DomBot shows where to find each one. Credentials are stored

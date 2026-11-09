@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DomainOp, RegistrarName } from './ipc';
-import { REGISTRAR_HELP } from './registrar-help';
+import { REGISTRAR_HELP, connectFailureMessage } from './registrar-help';
 import { reportsPrivacy, reportsLock, unsupportedReason } from './domain-ops';
 import { registrarHostsDns } from './market-verification';
 import { usesPerNameQuote } from '../core/services/pricing';
@@ -14,6 +14,13 @@ describe('Namefi integration', () => {
     expect(REGISTRAR_HELP.namefi.summary).toContain('saved card');
     expect(reportsPrivacy(namefi)).toBe(false);
     expect(reportsLock(namefi)).toBe(false);
+  });
+  it('hints at the API key on a server error, for Namefi only', () => {
+    expect(connectFailureMessage(namefi, 'Failed', 502)).toBe(
+      'Failed. Namefi also returns this for an invalid API key, so check the key first.',
+    );
+    expect(connectFailureMessage(namefi, 'Failed', 401)).toBe('Failed');
+    expect(connectFailureMessage('porkbun', 'Failed', 502)).toBe('Failed');
   });
   it('blocks absent API changes and keeps auto-renew available to the provider', () => {
     const blocked: DomainOp[] = [

@@ -29,6 +29,7 @@ import {
   removeAccountRecord,
 } from './accounts';
 import { domainKey } from '../../shared/account-key';
+import { connectFailureMessage } from '../../shared/registrar-help';
 import { normalizeNameservers, toAscii } from '../../shared/domain-name';
 import { currencyInfo } from '../../shared/money';
 import { expiryDay, type AccountHoldings } from '../../shared/sync-diff';
@@ -1468,9 +1469,12 @@ export async function connectRegistrarAccount(
   if (!result.success)
     return {
       success: false,
-      message:
+      message: connectFailureMessage(
+        name,
         result.message ||
-        'Connection failed. Check your credentials and try again.',
+          'Connection failed. Check your credentials and try again.',
+        result.status,
+      ),
       ...(result.status ? { status: result.status } : {}),
     };
   const optionalFailure = await checkOptionalSettings(name, registrar, clean);
