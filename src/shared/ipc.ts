@@ -62,6 +62,8 @@ export type ConnectRegistrarResult =
 export type DomainSource = 'registrar' | 'imported';
 
 export type Domain = ProviderDomain & {
+  /** An invalid registrar creation date was suppressed; expiry is unaffected. */
+  createdDateIssue?: 'invalid' | 'future' | 'after-expiration';
   accountId?: string;
   accountLabel?: string;
   /**

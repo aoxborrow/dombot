@@ -1,3 +1,7 @@
+import {
+  qualifyCreationDate,
+  mergeDomainDetail,
+} from '../../shared/creation-date';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type {
@@ -1088,7 +1092,7 @@ export function registerTools(server: McpServer): void {
       ).listDomains();
       return json(
         domains.map((d) => ({
-          ...d,
+          ...qualifyCreationDate(d),
           registrar,
           accountId: account.id,
           accountLabel: account.label,
@@ -1269,9 +1273,10 @@ export function registerTools(server: McpServer): void {
         (d) => d.accountId === account.id && toAscii(d.domainName) === key,
       );
       return json({
-        ...(row ?? {}),
-        ...(detail ??
-          (await getRegistrarClient(r, account.id).getDomain(domain))),
+        ...mergeDomainDetail(
+          row ?? {},
+          detail ?? (await getRegistrarClient(r, account.id).getDomain(domain)),
+        ),
         registrar: r,
         accountId: account.id,
         accountLabel: account.label,

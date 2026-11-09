@@ -13,9 +13,10 @@ const getConfiguredRegistrars = vi.fn(() => ['dynadot']);
 const getActiveRegistrars = vi.fn(() => ['dynadot']);
 const setDnsRecords = vi.fn();
 const getDomain = vi.fn();
+const listDomains = vi.fn();
 const getRegistrarClient = vi.fn((name: string) => {
   void name;
-  return { setDnsRecords, getDomain };
+  return { setDnsRecords, getDomain, listDomains };
 });
 const registerDomainCached = vi.fn();
 const getDomainDetail = vi.fn();
@@ -201,7 +202,7 @@ const schema = (name: string) => z.object(tools.get(name)!.config.inputSchema);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  getRegistrarClient.mockReturnValue({ setDnsRecords, getDomain });
+  getRegistrarClient.mockReturnValue({ setDnsRecords, getDomain, listDomains });
   getConfiguredRegistrars.mockReturnValue(['dynadot']);
   getActiveRegistrars.mockReturnValue(['dynadot']);
   getFolders.mockReturnValue({ folders: [], assignments: {} });
@@ -662,6 +663,43 @@ describe('end-to-end handlers', () => {
       },
     ]);
     expect(await rows({ ownership: 'all' })).toHaveLength(3);
+  });
+
+  it('direct registrar domains suppress future creation without changing expiry', async () => {
+    listDomains.mockResolvedValue([
+      {
+        domainName: 'two-year.example',
+        createdDate: new Date('2099-12-28'),
+        expirationDate: new Date('2100-12-28'),
+      },
+    ]);
+    const out = await call('registrar_domains', { registrar: 'namecheap' });
+    expect(out).toMatchObject([
+      {
+        createdDate: null,
+        createdDateIssue: 'future',
+        expirationDate: '2100-12-28T00:00:00.000Z',
+      },
+    ]);
+  });
+
+  it('domain_get qualifies the direct provider fallback too', async () => {
+    findRegistrarsForDomain.mockReturnValue(['namecheap']);
+    getDomainDetail.mockResolvedValue(null);
+    getDomain.mockResolvedValue({
+      domainName: 'two-year.example',
+      createdDate: new Date('2099-12-28'),
+      expirationDate: new Date('2100-12-28'),
+    });
+    const out = await call('domain_get', {
+      domain: 'two-year.example',
+      refresh: true,
+    });
+    expect(out).toMatchObject({
+      createdDate: null,
+      createdDateIssue: 'future',
+      expirationDate: '2100-12-28T00:00:00.000Z',
+    });
   });
 
   it('domain_get returns cached detail when present', async () => {
