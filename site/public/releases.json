@@ -3,6 +3,51 @@
     {
       "assets": [
         {
+          "name": "dombot-2.2.2-full.nupkg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v2.2.2/dombot-2.2.2-full.nupkg"
+        },
+        {
+          "name": "DomBot-2.2.2-mac-arm64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v2.2.2/DomBot-2.2.2-mac-arm64.dmg"
+        },
+        {
+          "name": "DomBot-2.2.2-mac-intel-x64.dmg",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v2.2.2/DomBot-2.2.2-mac-intel-x64.dmg"
+        },
+        {
+          "name": "DomBot-2.2.2.Setup.exe",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v2.2.2/DomBot-2.2.2.Setup.exe"
+        },
+        {
+          "name": "DomBot-darwin-arm64-2.2.2.zip",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v2.2.2/DomBot-darwin-arm64-2.2.2.zip"
+        },
+        {
+          "name": "DomBot-darwin-x64-2.2.2.zip",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v2.2.2/DomBot-darwin-x64-2.2.2.zip"
+        },
+        {
+          "name": "dombot-linux-amd64-2.2.2.deb",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v2.2.2/dombot-linux-amd64-2.2.2.deb"
+        },
+        {
+          "name": "dombot-linux-x86_64-2.2.2.rpm",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v2.2.2/dombot-linux-x86_64-2.2.2.rpm"
+        },
+        {
+          "name": "RELEASES",
+          "url": "https://github.com/aoxborrow/dombot/releases/download/v2.2.2/RELEASES"
+        }
+      ],
+      "name": "DomBot v2.2.2",
+      "publishedAt": "2026-11-10T20:45:34Z",
+      "tag": "v2.2.2",
+      "url": "https://github.com/aoxborrow/dombot/releases/tag/v2.2.2",
+      "version": "2.2.2"
+    },
+    {
+      "assets": [
+        {
           "name": "dombot-2.2.1-full.nupkg",
           "url": "https://github.com/aoxborrow/dombot/releases/download/v2.2.1/dombot-2.2.1-full.nupkg"
         },
