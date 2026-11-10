@@ -261,7 +261,5 @@ burning the rest of the queue.
 - **Bulk-edit follow-ups:** reverting toggles from the Done step, bulk
   DNSSEC off, and caching forwarding rules so they can be columns and filters
   ([#150](https://github.com/aoxborrow/dombot/issues/150)).
-- **Folder follow-ups,** including per-folder settings that cascade to their
-  names ([#152](https://github.com/aoxborrow/dombot/issues/152)).
 - **A bulk MCP tool** over the same runner
   ([#111](https://github.com/aoxborrow/dombot/issues/111)).

@@ -83,7 +83,6 @@ export const folderPatch = z
     name: z.string().trim().min(1).max(100),
     description: z.string().max(500),
     color: folderColor,
-    settings: z.object({ forSale: z.boolean().optional() }).strict(),
   })
   .partial()
   .strict();
