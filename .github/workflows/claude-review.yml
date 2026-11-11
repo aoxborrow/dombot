@@ -31,6 +31,24 @@ on:
 
 permissions: {}
 
+# One queue per PR, so reviews (each review job plus its publish job) never
+# overlap. Runs that won't review (ordinary comments, drafts, fork pushes) get
+# a group of their own, so they can't replace a waiting review. GitHub keeps
+# one pending run per group, so a push can replace a waiting /claude-review;
+# comment again if that happens. The condition matches the review job's `if`.
+concurrency:
+  group: >-
+    claude-review-${{ github.event.pull_request.number || github.event.issue.number }}${{
+    !((github.event_name == 'pull_request'
+        && github.event.pull_request.head.repo.full_name == github.repository
+        && !github.event.pull_request.draft)
+      || (github.event_name == 'issue_comment'
+        && github.event.issue.pull_request
+        && startsWith(github.event.comment.body, '/claude-review')
+        && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)))
+    && format('-skip-{0}', github.run_id) || '' }}
+  cancel-in-progress: false
+
 env:
   PR: ${{ github.event.pull_request.number || github.event.issue.number }}
   REPO: ${{ github.repository }}
@@ -47,13 +65,6 @@ jobs:
         && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # One queue per PR, so two reviews never run at once. It sits on this job,
-    # not the workflow, so ordinary comments (which skip this job) don't enter
-    # it. GitHub keeps one pending run per group, so a push can replace a
-    # waiting /claude-review; comment again if that happens.
-    concurrency:
-      group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
-      cancel-in-progress: false
     permissions:
       contents: read
       pull-requests: read
@@ -212,25 +223,23 @@ jobs:
                   + "\n\n" + .summary
                   + (if ($new | length) > 0 then "\n\n" + ($new | map("- \(icon) **\(.title)** (`\(.path):\(.line)`)") | join("\n")) else "" end)
                   + (if (.ruled_out | length) > 0 then "\n\n<details><summary>Checked and ruled out</summary>\n\n" + (.ruled_out | map("- " + .) | join("\n")) + "\n\n</details>" else "" end)
-                  + "\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)"
-                  + "\n\n<!-- claude-review -->"
                 )
               }' result.json > review.json
+
+          # Appended last in both paths below, so model text can't displace it.
+          footer=$'\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\n<!-- claude-review -->'
 
           comments=$(jq '[.new[] | {path, line, side: "RIGHT", body: ("\(if .severity == "high" then "🔴" elif .severity == "medium" then "🟠" else "🟡" end) **\(.title)**\n\n\(.body)\n\n<!-- \(.fp) -->")}]' review.json)
           payload() { jq -n --arg sha "$HEAD" --arg body "$1" --argjson comments "$2" \
             '{commit_id: $sha, event: "COMMENT", body: $body, comments: $comments}'; }
 
-          body=$(jq -r .body review.json)
+          body="$(jq -r .body review.json)$footer"
           if ! payload "$body" "$comments" | gh api --method POST "repos/$REPO/pulls/$PR/reviews" --input - --silent; then
             # A line outside the diff makes GitHub reject the whole review.
             # Fall back to a review with every finding in the body.
             echo "Inline comments were rejected; posting the findings in the review body."
-            # The findings go above the footer.
-            full=$(jq -r '(.body | split("\n\n🤖 Generated with")) as $p
-              | $p[0] + "\n\n---\n\n"
-              + ([.new[] | "### \(.title)\n`\(.path):\(.line)`\n\n\(.body)\n\n<!-- \(.fp) -->"] | join("\n\n"))
-              + "\n\n🤖 Generated with" + $p[1]' review.json)
+            full="$(jq -r '.body + "\n\n---\n\n"
+              + ([.new[] | "### \(.title)\n`\(.path):\(.line)`\n\n\(.body)\n\n<!-- \(.fp) -->"] | join("\n\n"))' review.json)$footer"
             payload "$full" '[]' | gh api --method POST "repos/$REPO/pulls/$PR/reviews" --input - --silent
           fi
 
