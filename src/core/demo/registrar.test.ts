@@ -159,6 +159,21 @@ describe('DemoRegistrar writes', () => {
     ).toBe('A');
   });
 
+  it('resets nameservers to the registrar defaults where the provider can', async () => {
+    const { world, porkbun } = setup();
+    await porkbun.updateNameservers('brightharbor.com', ['ns1.vercel-dns.com']);
+    expect((await porkbun.resetNameservers('brightharbor.com')).success).toBe(
+      true,
+    );
+    expect(world.get('brightharbor.com')!.nameservers).toEqual(
+      defaultNameservers('porkbun'),
+    );
+    const gd = new DemoRegistrar('godaddy', 'godaddy', world);
+    await expect(gd.resetNameservers('elsewhere.net')).rejects.toBeInstanceOf(
+      NotImplementedError,
+    );
+  });
+
   it('renew extends expiry by whole years; register adds to the world', async () => {
     const { world, porkbun } = setup();
     const before = world.get('brightharbor.com')!.expirationDate.getTime();
