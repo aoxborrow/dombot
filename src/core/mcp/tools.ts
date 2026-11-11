@@ -154,6 +154,10 @@ async function domainOp(
     success: r.status === 'ok',
     status: r.status,
     message: r.message,
+    // A reset to the registrar's default reports the hosts it read back.
+    ...(op.kind === 'nameservers' && op.registrarDefault && r.patch?.nameservers
+      ? { nameservers: r.patch.nameservers }
+      : {}),
   });
 }
 
@@ -1857,6 +1861,31 @@ export function registerTools(server: McpServer): void {
         r,
         domain,
         { kind: 'nameservers', nameservers },
+        account.id,
+      );
+    },
+  );
+
+  server.registerTool(
+    'domain_nameservers_reset',
+    {
+      title: 'Reset nameservers to the registrar’s default',
+      description:
+        'For a single domain: put it back on its registrar’s own default nameservers, so the registrar hosts its DNS again (Spaceship Basic DNS, Namecheap BasicDNS, Gandi LiveDNS, and so on). Use this rather than domain_nameservers_set when you don’t know the default hosts. Unsupported where the registrar’s API can’t do it (GoDaddy, NameBright, 101domain, Cloudflare, Namefi). Returns the hosts the registrar reports afterwards when it reports them.',
+      inputSchema: { accountId, registrar: optionalRegistrar, domain },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      },
+    },
+    async ({ accountId, registrar, domain }) => {
+      const r = resolveRegistrar(domain, registrar, accountId);
+      const account = resolveDomainAccount(r, domain, accountId);
+      return domainOp(
+        r,
+        domain,
+        { kind: 'nameservers', nameservers: [], registrarDefault: true },
         account.id,
       );
     },

@@ -20,6 +20,7 @@ const setAutoRenewCached = vi.fn();
 const setPrivacyCached = vi.fn();
 const setLockCached = vi.fn();
 const setNameserversCached = vi.fn();
+const resetNameserversCached = vi.fn();
 const renewDomainCached = vi.fn();
 const getAuthCode = vi.fn();
 const getTransferOut = vi.fn();
@@ -63,6 +64,7 @@ vi.mock('./registrars', () => ({
   setPrivacyCached: (...a: unknown[]) => setPrivacyCached(...a),
   setLockCached: (...a: unknown[]) => setLockCached(...a),
   setNameserversCached: (...a: unknown[]) => setNameserversCached(...a),
+  resetNameserversCached: (...a: unknown[]) => resetNameserversCached(...a),
   renewDomainCached: (...a: unknown[]) => renewDomainCached(...a),
   getCachedPortfolio: () => getCachedPortfolio(),
   getCachedDomainDetail: () => getCachedDomainDetail(),
@@ -991,5 +993,115 @@ describe('applyDomainOp — txtRecords (Ownership verification TXT…)', () => {
     const r = await applyDomainOp(target, op);
     expect(r.status).toBe('ok');
     expect(r.message).toMatch(/confirmed by re-reading the records/);
+  });
+});
+
+describe('applyDomainOp — registrar default nameservers', () => {
+  const reset: DomainOp = {
+    kind: 'nameservers',
+    nameservers: [],
+    registrarDefault: true,
+  };
+
+  it('resets, patches the hosts read back, and records them', async () => {
+    getDomainFeatures.mockReturnValue(['resetNameservers']);
+    getCachedDomainDetail.mockReturnValueOnce({
+      nameservers: ['ns1.afternic.com', 'ns2.afternic.com'],
+    });
+    resetNameserversCached.mockResolvedValue({
+      result: ok(),
+      nameservers: ['launch1.spaceship.net', 'launch2.spaceship.net'],
+    });
+    const r = await applyDomainOp(
+      { registrar: 'spaceship', accountId: 'spaceship', domainName: 'a.com' },
+      reset,
+    );
+    expect(r.status).toBe('ok');
+    expect(r.message).toMatch(/default/);
+    expect(setNameserversCached).not.toHaveBeenCalled();
+    expect(r.patch).toEqual({
+      nameservers: ['launch1.spaceship.net', 'launch2.spaceship.net'],
+    });
+    const event = putEvents.mock.calls[0][0][0] as unknown as {
+      setting: string;
+      before: string[];
+      after: string[];
+    };
+    expect(event.setting).toBe('nameservers');
+    expect(event.before).toEqual(['ns1.afternic.com', 'ns2.afternic.com']);
+    expect(event.after).toEqual([
+      'launch1.spaceship.net',
+      'launch2.spaceship.net',
+    ]);
+  });
+
+  it('records no change when the hosts could not be read back', async () => {
+    getDomainFeatures.mockReturnValue(['resetNameservers']);
+    resetNameserversCached.mockResolvedValue({
+      result: ok(),
+      nameservers: null,
+    });
+    const r = await applyDomainOp(
+      { registrar: 'gandi', accountId: 'gandi', domainName: 'a.com' },
+      reset,
+    );
+    expect(r.status).toBe('ok');
+    expect(r.patch).toBeUndefined();
+    expect(putEvents).not.toHaveBeenCalled();
+  });
+
+  it('is unsupported, with no call, where the registrar lacks the feature', async () => {
+    getDomainFeatures.mockReturnValue([]);
+    const r = await applyDomainOp(
+      { registrar: 'godaddy', accountId: 'godaddy', domainName: 'a.com' },
+      reset,
+    );
+    expect(r.status).toBe('unsupported');
+    expect(r.message).toMatch(/default nameservers/);
+    expect(resetNameserversCached).not.toHaveBeenCalled();
+  });
+
+  it('turns a set of Gandi LiveDNS hosts into a reset', async () => {
+    getDomainFeatures.mockReturnValue(['resetNameservers']);
+    resetNameserversCached.mockResolvedValue({
+      result: ok(),
+      nameservers: ['ns-1-a.gandi.net', 'ns-1-b.gandi.net'],
+    });
+    await applyDomainOp(
+      { registrar: 'gandi', accountId: 'gandi', domainName: 'a.com' },
+      {
+        kind: 'nameservers',
+        nameservers: ['NS-220-a.gandi.net', 'ns-220-b.gandi.net'],
+      },
+    );
+    expect(resetNameserversCached).toHaveBeenCalledTimes(1);
+    expect(setNameserversCached).not.toHaveBeenCalled();
+  });
+
+  it('writes LiveDNS hosts as a plain set when the account can’t reset', async () => {
+    getDomainFeatures.mockReturnValue([]);
+    setNameserversCached.mockResolvedValue(ok());
+    await applyDomainOp(
+      { registrar: 'gandi', accountId: 'gandi', domainName: 'a.com' },
+      {
+        kind: 'nameservers',
+        nameservers: ['ns-220-a.gandi.net', 'ns-220-b.gandi.net'],
+      },
+    );
+    expect(resetNameserversCached).not.toHaveBeenCalled();
+    expect(setNameserversCached).toHaveBeenCalledTimes(1);
+  });
+
+  it('a lost response stays unknown: there are no hosts to look for', async () => {
+    getDomainFeatures.mockReturnValue(['resetNameservers']);
+    resetNameserversCached.mockRejectedValue(
+      new OutcomeUnknownError('timed out'),
+    );
+    getDomainDetail.mockResolvedValue({ nameservers: ['ns1.x.net'] });
+    const r = await applyDomainOp(
+      { registrar: 'spaceship', accountId: 'spaceship', domainName: 'a.com' },
+      reset,
+    );
+    expect(r.status).toBe('unknown');
   });
 });

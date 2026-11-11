@@ -65,6 +65,7 @@ import { NameserversEditor } from './NameserversEditor';
 import { UrlForwardingEditor } from './UrlForwardingEditor';
 import { EmailForwardingEditor } from './EmailForwardingEditor';
 import { useNameserverPresets } from './useNameserverPresets';
+import type { NameserversOp } from '../../lib/nameserver-input';
 import {
   DEFAULT_CURRENCY,
   DEFAULT_NUMBER_FORMAT,
@@ -114,8 +115,11 @@ export function BulkActionDialog({
   // After "Retry failed": only these targets are offered in Configure.
   const [retryOf, setRetryOf] = useState<Set<string> | null>(null);
   const [starting, setStarting] = useState(false);
-  // The nameserver editor's parsed set (null while invalid/empty).
-  const [nsValid, setNsValid] = useState<string[] | null>(null);
+  // The nameserver editor's write (null while invalid/empty).
+  const [nsOp, setNsOp] = useState<NameserversOp | null>(null);
+  // What the selection is bucketed against: the editor's choice once there is
+  // one, since a registrar default isn't offered everywhere.
+  const gateOp: DomainOp = op.kind === 'nameservers' && nsOp ? nsOp : op;
 
   const job = bulk && bulk.id === jobId ? bulk : null;
   const stage: 'configure' | 'running' | 'done' = !job
@@ -137,11 +141,11 @@ export function BulkActionDialog({
     () =>
       bucketSelection(
         candidates,
-        op,
+        gateOp,
         registrars,
         (d) => domainKey(d) in enriched,
       ),
-    [candidates, op, registrars, enriched],
+    [candidates, gateOp, registrars, enriched],
   );
 
   // Payload validation. Forwarding rules are checked registrar-agnostically
@@ -176,10 +180,10 @@ export function BulkActionDialog({
       };
     }
     if (op.kind === 'nameservers') {
-      return { validation: null, conflicts: none, ready: nsValid !== null };
+      return { validation: null, conflicts: none, ready: nsOp !== null };
     }
     return { validation: null, conflicts: none, ready: true };
-  }, [op, buckets.eligible, nsValid]);
+  }, [op, buckets.eligible, nsOp]);
 
   const held = useMemo(
     () =>
@@ -204,7 +208,7 @@ export function BulkActionDialog({
     try {
       const finalOp: DomainOp =
         op.kind === 'nameservers'
-          ? { kind: 'nameservers', nameservers: nsValid ?? [] }
+          ? (nsOp ?? op)
           : op.kind === 'urlForwarding'
             ? { ...op, forwards: op.forwards.map(normalizeUrlForward) }
             : op.kind === 'emailForwarding'
@@ -217,7 +221,7 @@ export function BulkActionDialog({
       }));
       const started = await startBulk(targets, finalOp);
       setJobId(started.id);
-      if (finalOp.kind === 'nameservers') {
+      if (finalOp.kind === 'nameservers' && !finalOp.registrarDefault) {
         void rememberNameservers(finalOp.nameservers);
       }
     } catch (err) {
@@ -282,7 +286,7 @@ export function BulkActionDialog({
             onChange={(on) => setOp(flagOp(op.kind as FlagKind, on))}
           />
         )}
-        {op.kind === 'nameservers' && <BulkNameservers onChange={setNsValid} />}
+        {op.kind === 'nameservers' && <BulkNameservers onChange={setNsOp} />}
         {op.kind === 'urlForwarding' && (
           <>
             <UrlForwardingEditor
@@ -547,7 +551,7 @@ function FlagChooser({
 function BulkNameservers({
   onChange,
 }: {
-  onChange: (nameservers: string[] | null) => void;
+  onChange: (op: NameserversOp | null) => void;
 }) {
   const presets = useNameserverPresets();
   return (
@@ -558,6 +562,11 @@ function BulkNameservers({
       <NameserversEditor
         initial={[]}
         presets={presets}
+        registrarDefault={{
+          description:
+            'Each domain back on its own registrar’s nameservers. Domains whose registrar can’t do this are skipped.',
+          reason: null,
+        }}
         showActions={false}
         onChange={onChange}
       />

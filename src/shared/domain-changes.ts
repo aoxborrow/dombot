@@ -98,6 +98,9 @@ export function opChange(
     case 'lock':
       return changeOf(DomainSetting.Lock, known.lock, op.locked);
     case 'nameservers':
+      // A reset to the registrar's default names no hosts until they're
+      // read back.
+      if (op.registrarDefault && op.nameservers.length === 0) return null;
       return changeOf(
         DomainSetting.Nameservers,
         known.nameservers && normalizeNameservers(known.nameservers),

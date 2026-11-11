@@ -3,6 +3,8 @@ import { describe, it, expect } from 'vitest';
 import {
   friendlyError,
   isApiUnsupportedMessage,
+  isRegistrarDefaultSet,
+  NO_REGISTRAR_DEFAULT,
   missingFeatureReason,
   opSummary,
   reportsPrivacy,
@@ -157,6 +159,41 @@ describe('unsupportedReason', () => {
         expect(unsupportedReason(r, ALL, op)).toBeNull();
       }
     }
+  });
+});
+
+describe('registrar default nameservers', () => {
+  const reset: DomainOp = {
+    kind: 'nameservers',
+    nameservers: [],
+    registrarDefault: true,
+  };
+  it('needs the ResetNameservers feature', () => {
+    expect(unsupportedReason('spaceship', ['resetNameservers'], reset)).toBe(
+      null,
+    );
+    expect(unsupportedReason('godaddy', [], reset)).toBe(NO_REGISTRAR_DEFAULT);
+  });
+  it('keeps the registrar’s own reason where it can’t set nameservers at all', () => {
+    expect(unsupportedReason('cloudflare', [], reset)).toMatch(/Cloudflare/);
+  });
+  it('says what happened', () => {
+    expect(opSummary(reset)).toMatch(/default/);
+  });
+  it('spots a set of Gandi LiveDNS hosts', () => {
+    expect(
+      isRegistrarDefaultSet('gandi', [
+        'ns-220-a.gandi.net',
+        'ns-220-b.gandi.net',
+      ]),
+    ).toBe(true);
+    expect(
+      isRegistrarDefaultSet('gandi', ['ns-220-a.gandi.net', 'ns1.other.net']),
+    ).toBe(false);
+    expect(isRegistrarDefaultSet('gandi', [])).toBe(false);
+    expect(isRegistrarDefaultSet('dynadot', ['ns-220-a.gandi.net'])).toBe(
+      false,
+    );
   });
 });
 

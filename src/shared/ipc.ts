@@ -735,7 +735,14 @@ export type DomainOp =
   | { kind: 'autoRenew'; enabled: boolean }
   | { kind: 'privacy'; enabled: boolean }
   | { kind: 'lock'; locked: boolean }
-  | { kind: 'nameservers'; nameservers: string[] }
+  | {
+      kind: 'nameservers';
+      /** The full set to write; empty with `registrarDefault`. */
+      nameservers: string[];
+      /** Put the domain back on its registrar's own default nameservers
+       *  (registrar-client `resetNameservers`), whatever their hosts are. */
+      registrarDefault?: boolean;
+    }
   | {
       kind: 'urlForwarding';
       forwards: UrlForwardInput[];

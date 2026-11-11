@@ -9,6 +9,10 @@ import {
   useOpUnsupportedReason,
 } from '../../lib/domain-ops';
 import { useNameserverPresets } from './useNameserverPresets';
+import {
+  REGISTRAR_DEFAULT_OP,
+  type NameserversOp,
+} from '../../lib/nameserver-input';
 import { cn } from '@/lib/utils';
 import {
   Popover,
@@ -46,9 +50,9 @@ export function NameserversCell({ domain }: { domain: Domain }) {
   const probe: DomainOp = { kind: 'nameservers', nameservers: [] };
   const reason = useOpUnsupportedReason(domain, probe);
 
-  const save = (nameservers: string[]) => {
+  const save = (op: NameserversOp) => {
     setOpen(false);
-    write(nameservers);
+    write(op);
   };
 
   const empty = domain.nameservers.length === 0;
@@ -118,6 +122,7 @@ export function NameserversDialog({
 }) {
   const write = useSaveNameservers(domain);
   const presets = useNameserverPresets();
+  const registrarDefault = useRegistrarDefault(domain);
   return (
     <Dialog
       open
@@ -139,10 +144,11 @@ export function NameserversDialog({
         <NameserversEditor
           initial={domain.nameservers}
           presets={presets}
+          registrarDefault={registrarDefault}
           note={EDITOR_NOTE[domain.registrar]}
-          onSave={(nameservers) => {
+          onSave={(op) => {
             onClose();
-            write(nameservers);
+            write(op);
           }}
           onCancel={onClose}
         />
@@ -153,16 +159,31 @@ export function NameserversDialog({
 
 /**
  * Writes a full nameserver set at the registrar, pessimistically (the row
- * shows pending until it answers), and remembers it as a recent preset.
+ * shows pending until it answers), and remembers it as a recent preset. A
+ * reset to the registrar's default isn't a set to remember.
  */
 function useSaveNameservers(domain: Domain) {
   const applyDomainOp = useAppStore((s) => s.applyDomainOp);
   const rememberNameservers = useAppStore((s) => s.rememberNameservers);
-  return (nameservers: string[]) => {
-    const op: DomainOp = { kind: 'nameservers', nameservers };
+  return (op: NameserversOp) => {
     void applyDomainOp(targetOf(domain), op).then((result) => {
-      if (reportOpResult(op, result)) void rememberNameservers(nameservers);
+      if (reportOpResult(op, result) && !op.registrarDefault)
+        void rememberNameservers(op.nameservers);
     });
+  };
+}
+
+/** The editor's "Registrar default DNS" choice for a row: offered on every
+ *  registrar, disabled with the reason where its API can't do it. */
+function useRegistrarDefault(domain: Domain) {
+  const registrars = useAppStore((s) => s.registrars);
+  const reason = useOpUnsupportedReason(domain, REGISTRAR_DEFAULT_OP);
+  const name =
+    registrars?.find((r) => r.name === domain.registrar)?.displayName ??
+    'the registrar';
+  return {
+    description: `Back on ${name}’s own nameservers, so ${name} hosts the DNS.`,
+    reason,
   };
 }
 
@@ -174,10 +195,11 @@ function EditorWithPresets({
   onCancel,
 }: {
   domain: Domain;
-  onSave: (nameservers: string[]) => void;
+  onSave: (op: NameserversOp) => void;
   onCancel: () => void;
 }) {
   const presets = useNameserverPresets();
+  const registrarDefault = useRegistrarDefault(domain);
 
   return (
     <div className="flex flex-col gap-2">
@@ -191,6 +213,7 @@ function EditorWithPresets({
       <NameserversEditor
         initial={domain.nameservers}
         presets={presets}
+        registrarDefault={registrarDefault}
         note={EDITOR_NOTE[domain.registrar]}
         onSave={onSave}
         onCancel={onCancel}

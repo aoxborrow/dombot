@@ -17,6 +17,7 @@ import type {
 } from '../../shared/ipc';
 import {
   expandTemplate,
+  isRegistrarDefaultSet,
   missingFeatureReason,
   opSummary,
   unsupportedReason,
@@ -56,6 +57,7 @@ import {
   setAutoRenewCached,
   setLockCached,
   setNameserversCached,
+  resetNameserversCached,
   setPrivacyCached,
 } from './registrars';
 
@@ -109,6 +111,15 @@ export async function applyDomainOp(
   // spelling (some registrars refuse capitals), whoever asked.
   if (op.kind === 'nameservers')
     op = { ...op, nameservers: normalizeNameservers(op.nameservers) };
+  // A registrar's own default hosts go back as a reset, so the registrar
+  // hosts the DNS again rather than seeing them as custom nameservers.
+  if (
+    op.kind === 'nameservers' &&
+    !op.registrarDefault &&
+    isRegistrarDefaultSet(target.registrar, op.nameservers) &&
+    getDomainFeatures(target).includes(Feature.ResetNameservers)
+  )
+    op = { kind: 'nameservers', nameservers: [], registrarDefault: true };
 
   // Gate up front so a known-unsupported op never makes a network call.
   const reason = unsupportedReason(
@@ -130,7 +141,7 @@ export async function applyDomainOp(
     // of unknown outcome took effect, and what a setting was before.
     const before = cachedDomain(target);
     const known = knownSettings(before, account.id, target.domainName);
-    const seen: Seen = {};
+    const seen: Seen = { known };
     let result: DomainOpResult;
     try {
       result = await dispatch(target, op, request, done, seen);
@@ -172,6 +183,8 @@ export async function applyDomainOp(
 interface Seen {
   charge?: ConfirmedRenewal['charge'];
   change?: SettingChange | null;
+  /** What DomBot knew going in, for a write that works out its own change. */
+  known?: KnownSettings;
 }
 
 /**
@@ -384,7 +397,9 @@ async function settleUnknown(
         ? confirmed({ locked: op.locked })
         : done('failed', NOT_APPLIED);
     case 'nameservers': {
-      if (!now.nameservers) return done('unknown', UNCONFIRMED);
+      // The default hosts aren't known up front, so there's nothing to match.
+      if (op.registrarDefault || !now.nameservers)
+        return done('unknown', UNCONFIRMED);
       const set = (list: string[]) =>
         [...new Set(list.map(normalizeNameserver))].sort().join(' ');
       return set(now.nameservers) === set(op.nameservers)
@@ -474,7 +489,22 @@ async function dispatch(
         ),
         { locked: op.locked },
       );
-    case 'nameservers':
+    case 'nameservers': {
+      if (op.registrarDefault) {
+        const { result, nameservers } = await resetNameserversCached(
+          registrar,
+          domainName,
+          request,
+          accountId,
+        );
+        // The history records the hosts the registrar now reports; without
+        // them there is no `after` to record.
+        if (result.success && !result.pending)
+          seen.change = nameservers
+            ? opChange({ ...op, nameservers }, domainName, seen.known ?? {})
+            : null;
+        return fromResult(result, nameservers ? { nameservers } : undefined);
+      }
       return fromResult(
         await setNameserversCached(
           registrar,
@@ -485,6 +515,7 @@ async function dispatch(
         ),
         { nameservers: op.nameservers },
       );
+    }
     case 'renew': {
       // Money: registrar-client never re-sends a write whose outcome is
       // unknown, so a timed-out renewal can't be charged twice. It does retry

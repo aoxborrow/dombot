@@ -115,8 +115,45 @@ export function unsupportedReason(
   if (required && !features.includes(required)) {
     return missingFeatureReason(registrar, required, OP_LABEL[op.kind]);
   }
-  return KNOWN_GAPS[registrar]?.(op) ?? null;
+  const gap = KNOWN_GAPS[registrar]?.(op);
+  if (gap) return gap;
+  if (
+    op.kind === 'nameservers' &&
+    op.registrarDefault &&
+    !features.includes(Feature.ResetNameservers)
+  )
+    return NO_REGISTRAR_DEFAULT;
+  return null;
 }
+
+// Default hosts registrar-client doesn't recognize in a plain set: Gandi's
+// LiveDNS hands each domain its own `ns-NNN-x.gandi.net` trio, so a set of
+// them means "Gandi's DNS", which only a reset switches back on.
+const DEFAULT_HOSTS: Partial<Record<RegistrarName, RegExp>> = {
+  gandi: /^ns-\d+-[a-z]\.gandi\.net$/,
+};
+
+/**
+ * Whether a set of (normalized) hosts is `registrar`'s own default DNS, to be
+ * written as a reset rather than as custom nameservers. Spaceship's, Namecheap's
+ * and Unstoppable's defaults registrar-client already switches by itself.
+ */
+export function isRegistrarDefaultSet(
+  registrar: RegistrarName,
+  nameservers: readonly string[],
+): boolean {
+  const pattern = DEFAULT_HOSTS[registrar];
+  return (
+    !!pattern &&
+    nameservers.length > 0 &&
+    nameservers.every((h) => pattern.test(h))
+  );
+}
+
+/** Why a registrar can't go back to its default nameservers: the library
+ *  doesn't know them (GoDaddy hands out a different pair per domain). */
+export const NO_REGISTRAR_DEFAULT =
+  'This registrar’s API can’t put a domain back on its default nameservers. Enter its nameservers by hand, or change them in your account at the registrar.';
 
 /** Why an account lacks an extended feature, `what` naming it ("URL
  *  forwarding"): Optional settings it hasn't filled in, or an API without it. */
@@ -140,7 +177,9 @@ export function opSummary(op: DomainOp): string {
     case 'lock':
       return op.locked ? 'Locked' : 'Unlocked';
     case 'nameservers':
-      return 'Nameservers updated';
+      return op.registrarDefault
+        ? 'Nameservers reset to the registrar’s default'
+        : 'Nameservers updated';
     case 'urlForwarding':
       return op.forwards.length === 0
         ? 'URL forwarding cleared'
