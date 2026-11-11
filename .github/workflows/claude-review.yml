@@ -55,11 +55,21 @@ jobs:
         if: github.event_name == 'issue_comment'
         run: gh api "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" -f content=eyes
 
-      # The base commit for PR events; the default branch for comments.
+      # Comment events don't carry the PR's base, so look it up. The base
+      # branch lives in this repo, so it's trusted code either way.
+      - name: Find the base commit
+        id: base
+        run: |
+          sha='${{ github.event.pull_request.base.sha }}'
+          if [ -z "$sha" ]; then
+            sha=$(gh pr view "$PR" -R "${{ github.repository }}" --json baseRefOid -q .baseRefOid)
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
       - name: Check out the base branch
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          ref: ${{ steps.base.outputs.sha }}
           persist-credentials: false
 
       - name: Fetch the PR head as data
@@ -70,13 +80,17 @@ jobs:
 
       # Our own summary comments end with a marker naming the commit reviewed.
       # Only github-actions[bot] can write one, so a contributor can't fake it.
+      # A /claude-review comment asks for a full review, so it skips this.
       - name: Find the last reviewed commit
         id: last
+        if: github.event_name == 'pull_request'
         run: |
           sha=$(gh api "repos/${{ github.repository }}/issues/$PR/comments" --paginate \
             --jq '.[] | select(.user.login == "github-actions[bot]") | .body
                   | [capture("claude-review sha=(?<s>[0-9a-f]{40})"; "g").s] | last // empty' | tail -n1)
-          if [ -n "$sha" ] && git fetch --depth=1 origin "$sha" 2>/dev/null; then
+          # Usually already present from the pr-head fetch; otherwise fetch it.
+          if [ -n "$sha" ] && { git cat-file -e "$sha^{commit}" 2>/dev/null \
+               || git fetch --depth=1 origin "$sha" 2>/dev/null; }; then
             echo "sha=$sha" >> "$GITHUB_OUTPUT"
           fi
 
