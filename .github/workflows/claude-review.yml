@@ -43,9 +43,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
-      # Separate queues per trigger, so a push can't replace a queued
-      # /claude-review request (GitHub keeps one pending run per group).
-      group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}-${{ github.event_name }}
+      # One queue per PR, so two reviews never run at once (overlapping runs
+      # post duplicate comments and can record an older commit last).
+      # GitHub keeps one pending run per group, so a push can replace a
+      # waiting /claude-review; comment again if that happens.
+      group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
       # Let a running review finish: cancelling midway can leave inline
       # comments without the summary marker, so they would be posted again.
       cancel-in-progress: false
