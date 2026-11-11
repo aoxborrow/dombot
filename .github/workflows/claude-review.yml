@@ -1,5 +1,8 @@
 name: Claude review
 
+# Calls the shared review in aoxborrow/skills; DomBot-specific focus areas
+# are in .github/pr-review.md.
+
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
@@ -28,4 +31,4 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
-    uses: aoxborrow/skills/.github/workflows/claude-review.yml@main
+    uses: aoxborrow/skills/.github/workflows/pr-review.yml@main
