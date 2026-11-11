@@ -44,7 +44,9 @@ jobs:
     timeout-minutes: 20
     concurrency:
       group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
-      cancel-in-progress: true
+      # Let a running review finish: cancelling midway can leave inline
+      # comments without the summary marker, so they would be posted again.
+      cancel-in-progress: false
     env:
       PR: ${{ github.event.pull_request.number || github.event.issue.number }}
       GH_TOKEN: ${{ github.token }}
@@ -73,7 +75,7 @@ jobs:
         run: |
           sha=$(gh api "repos/${{ github.repository }}/issues/$PR/comments" --paginate \
             --jq '.[] | select(.user.login == "github-actions[bot]") | .body
-                  | capture("claude-review sha=(?<s>[0-9a-f]{40})").s' | tail -n1)
+                  | [capture("claude-review sha=(?<s>[0-9a-f]{40})"; "g").s] | last // empty' | tail -n1)
           if [ -n "$sha" ] && git fetch --depth=1 origin "$sha" 2>/dev/null; then
             echo "sha=$sha" >> "$GITHUB_OUTPUT"
           fi
