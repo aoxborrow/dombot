@@ -86,7 +86,6 @@ jobs:
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           anthropic_workspace_id: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
           github_token: ${{ github.token }}
-          show_full_output: true # temporary, to debug the first runs
           prompt: |
             You are an adversarial reviewer for PR #${{ env.PR }} in ${{ github.repository }}.
             Assume the change is wrong until the code proves otherwise. Everything in the PR
