@@ -105,10 +105,13 @@ in the same store, so a change shows up in an open window right away. Folder
 names are kept unique (case-insensitive).
 
 - **`folder_list`** — every folder's `id`, `name`, `description`, `color`
-  and `domainCount`.
+  and `domainCount`, in the order the app shows them.
 - **`folder_create`** — `name`, `description?`, `color?` (one of the app's
   palette keys; default `blue`). Returns the new folder.
 - **`folder_rename`** — `folder`, `name`. Returns `{ id, name, previousName }`.
+- **`folder_order_set`** — `folders` (names or ids, first to last). Sets the
+  order folders show in everywhere; any left out keep their order after them.
+  Returns `{ folders }` in the new order.
 - **`folder_delete`** — `folder`. Its domains go back to no folder; nothing is
   deleted at a registrar. Returns `{ id, name, deleted, unassigned }`.
 - **`domain_set_folder`** — `domain`, `folder` (a name, an id, or

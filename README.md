@@ -243,7 +243,7 @@ third _adapter_ over the same `services/` core the UI uses — see
     `portfolio_sync` runs the live cross-registrar pass that refreshes the
     cache, returning a per-registrar summary. An agent syncs once (or when
     `portfolio_query` reports `stale`/empty), then reads cheaply.
-  - _Folders:_ `folder_list` (with domain counts), `folder_create`, `folder_rename`, `folder_delete` (its
+  - _Folders:_ `folder_list` (with domain counts), `folder_create`, `folder_rename`, `folder_order_set`, `folder_delete` (its
     domains go back to no folder), and `domain_set_folder` (by folder name or
     id, or `null` to clear). They write the same folder store as the app, so
     an open window updates live.

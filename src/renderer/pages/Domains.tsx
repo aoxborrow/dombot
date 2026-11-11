@@ -2066,11 +2066,14 @@ export default function Domains() {
       if (sortKey === RENEWAL) {
         return pricing[domainKey(d)]?.renewal ?? null;
       }
+      // By folder order (Settings → Folders), as the Folder filter lists
+      // them; an Archive label sorts after every folder.
       if (sortKey === FOLDER) {
         const label = archiveLabelOf(d);
-        if (label) return ARCHIVE_LABEL[label].toLowerCase();
+        if (label) return folders.length + ARCHIVE_LABELS.indexOf(label);
         const id = folderAssignments[toAscii(d.domainName)];
-        return folders.find((f) => f.id === id)?.name.toLowerCase() ?? null;
+        const at = folders.findIndex((f) => f.id === id);
+        return at < 0 ? null : at;
       }
       return col?.sortValue(d, portfolioRegistrarLabels) ?? null;
     };

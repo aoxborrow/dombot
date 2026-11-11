@@ -247,6 +247,7 @@ interface AppState {
   loadFolders: () => Promise<void>;
   createFolder: (input: FolderInput) => Promise<Folder>;
   updateFolder: (id: string, patch: FolderPatch) => Promise<void>;
+  reorderFolders: (ids: string[]) => Promise<void>;
   /** Delete a folder; also drops any local assignments pointing at it. */
   deleteFolder: (id: string) => Promise<void>;
   /** Assign a domain to a folder, or unassign it with a null folderId. */
@@ -824,6 +825,22 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => ({
       folders: state.folders.map((f) => (f.id === id ? { ...f, ...patch } : f)),
     }));
+  },
+  reorderFolders: async (ids) => {
+    // Optimistic, so a dropped row doesn't jump back while the write lands;
+    // mirrors the service (unlisted folders keep their order after the rest).
+    const before = get().folders;
+    const rank = new Map(ids.map((id, i) => [id, i]));
+    const listed = before
+      .filter((f) => rank.has(f.id))
+      .sort((a, b) => rank.get(a.id)! - rank.get(b.id)!);
+    set({ folders: [...listed, ...before.filter((f) => !rank.has(f.id))] });
+    try {
+      await window.api.reorderFolders(ids);
+    } catch (err) {
+      set({ folders: before });
+      throw err;
+    }
   },
   deleteFolder: async (id) => {
     await window.api.deleteFolder(id);

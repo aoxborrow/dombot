@@ -136,12 +136,14 @@ const createFolder = vi.fn((input: Omit<FolderStub, 'id'>) => ({
 }));
 const updateFolder = vi.fn();
 const deleteFolder = vi.fn();
+const reorderFolders = vi.fn();
 const assignFolder = vi.fn();
 vi.mock('../services/folders', () => ({
   getFolders: () => getFolders(),
   createFolder: (i: Omit<FolderStub, 'id'>) => createFolder(i),
   updateFolder: (...a: unknown[]) => updateFolder(...a),
   deleteFolder: (...a: unknown[]) => deleteFolder(...a),
+  reorderFolders: (...a: unknown[]) => reorderFolders(...a),
   assignFolder: (...a: unknown[]) => assignFolder(...a),
 }));
 
@@ -882,6 +884,15 @@ describe('folder tools', () => {
       /folder_list/,
     );
     expect(deleteFolder).not.toHaveBeenCalled();
+  });
+
+  it('folder_order_set resolves names, dedupes, and broadcasts', async () => {
+    await call('folder_order_set', { folders: ['Ideas', 'f2', 'work'] });
+    expect(reorderFolders).toHaveBeenCalledWith(['f2', 'f1']);
+    expect(broadcastPortfolioChanged).toHaveBeenCalled();
+    await expect(
+      call('folder_order_set', { folders: ['Nope'] }),
+    ).rejects.toThrow(/folder_list/);
   });
 
   it('folder_delete reports how many domains went back to no folder', async () => {

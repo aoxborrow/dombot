@@ -18,6 +18,7 @@ import {
   deleteFolder,
   getFolders,
   updateFolder,
+  reorderFolders,
 } from '../services/folders';
 import { getManualPrices, setManualPrice } from '../services/pricing';
 import {
@@ -432,6 +433,12 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     z.tuple([z.string(), s.folderPatch]),
     async (id, patch) => {
       updateFolder(id, patch);
+    },
+  ),
+  reorderFolders: method(
+    z.tuple([z.array(z.string()).max(1000)]),
+    async (ids) => {
+      reorderFolders(ids);
     },
   ),
   deleteFolder: method(z.tuple([z.string()]), async (id) => {
