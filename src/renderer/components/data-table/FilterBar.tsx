@@ -24,9 +24,9 @@ import { DomainTableScroll } from '../../lib/domain-table-scroll';
 import { FilterPlusIcon } from '../icons/FilterPlusIcon';
 
 // A table's filter bar: "Filters" opens a menu of fields, and each field
-// in use becomes a chip (name | value | ×) whose dropdown edits it. Only the
+// in use becomes a chip (name | value | ⊖) whose dropdown edits it. Only the
 // filters you set take up room; there's no Reset, each chip clears itself:
-// a set chip's clear button (circled minus) clears its value (the chip stays, empty), and an empty
+// a set chip's ⊖ clears its value (the chip stays, empty), and an empty
 // chip's × removes it.
 
 type Icon = ComponentType<{ className?: string }>;
@@ -265,7 +265,7 @@ export function FilterDropdown({
 export type FilterChipVariant = 'segmented' | 'flat';
 
 /**
- * One filter: [icon name value ⌫], its dropdown editing the value. With
+ * One filter: [icon name value ⊖], its dropdown editing the value. With
  * nothing set it's a dashed grey outline with just its icon and name, and ×.
  * The end button clears a set chip's value (circled minus) and removes an empty
  * chip (×), so clearing a filter never takes its chip away.
