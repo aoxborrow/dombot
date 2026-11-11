@@ -31,4 +31,4 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
-    uses: aoxborrow/skills/.github/workflows/pr-review.yml@main
+    uses: aoxborrow/skills/.github/workflows/reusable-claude-review.yml@main
