@@ -924,7 +924,7 @@ export default function Activity() {
             onClear: clearImport,
             content: (
               <p className="max-w-56 px-2 py-1.5 text-sm text-muted-foreground">
-                What one import recorded. Remove this filter to see everything.
+                What one import recorded. Clear this filter to see everything.
               </p>
             ),
           },
