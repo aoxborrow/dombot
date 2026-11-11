@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { importedRows } from '../../shared/imported-domains';
 import type { Domain, Folder } from '../../shared/ipc';
-import { countFolders, folderBucket, NO_FOLDER } from './folders';
+import { countFolders, folderBucket, moveTo, NO_FOLDER } from './folders';
 
 const folder = (id: string): Folder => ({
   id,
@@ -70,5 +70,14 @@ describe('countFolders', () => {
     );
     expect(counts.owned).toEqual({ f1: 1 });
     expect(counts.archive).toEqual({});
+  });
+});
+
+describe('moveTo', () => {
+  it('moves an id to an index, clamped to the ends', () => {
+    expect(moveTo(['a', 'b', 'c'], 'a', 2)).toEqual(['b', 'c', 'a']);
+    expect(moveTo(['a', 'b', 'c'], 'c', 0)).toEqual(['c', 'a', 'b']);
+    expect(moveTo(['a', 'b', 'c'], 'b', 9)).toEqual(['a', 'c', 'b']);
+    expect(moveTo(['a', 'b', 'c'], 'b', -1)).toEqual(['b', 'a', 'c']);
   });
 });

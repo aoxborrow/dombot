@@ -401,6 +401,7 @@ export function createHttpApi(): DombotApi {
     getFolders: m('getFolders'),
     createFolder: m('createFolder'),
     updateFolder: m('updateFolder'),
+    reorderFolders: m('reorderFolders'),
     deleteFolder: m('deleteFolder'),
     assignFolder: m('assignFolder'),
 

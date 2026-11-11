@@ -143,6 +143,7 @@ const api: DombotApi = {
   createFolder: (input) => ipcRenderer.invoke(IpcChannels.createFolder, input),
   updateFolder: (id, patch) =>
     ipcRenderer.invoke(IpcChannels.updateFolder, id, patch),
+  reorderFolders: (ids) => ipcRenderer.invoke(IpcChannels.reorderFolders, ids),
   deleteFolder: (id) => ipcRenderer.invoke(IpcChannels.deleteFolder, id),
   assignFolder: (domainName, folderId) =>
     ipcRenderer.invoke(IpcChannels.assignFolder, domainName, folderId),

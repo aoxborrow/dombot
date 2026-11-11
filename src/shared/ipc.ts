@@ -202,6 +202,7 @@ export const IpcChannels = {
   getFolders: 'folders:list',
   createFolder: 'folders:create',
   updateFolder: 'folders:update',
+  reorderFolders: 'folders:reorder',
   deleteFolder: 'folders:delete',
   assignFolder: 'folders:assign',
   getSettings: 'settings:get',
@@ -1164,6 +1165,8 @@ export interface DombotApi {
   createFolder: (input: FolderInput) => Promise<Folder>;
   /** Patch a folder's editable fields. */
   updateFolder: (id: string, patch: FolderPatch) => Promise<void>;
+  /** Put the folders in this order (folder ids), the order every list shows. */
+  reorderFolders: (ids: string[]) => Promise<void>;
   /** Delete a folder and drop every assignment pointing at it. */
   deleteFolder: (id: string) => Promise<void>;
   /** Assign a domain to a folder, or unassign it with a null folderId. */

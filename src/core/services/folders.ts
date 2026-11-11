@@ -54,6 +54,21 @@ export function updateFolder(id: string, patch: FolderPatch): void {
   );
 }
 
+/**
+ * Puts the folders in the given order, which is the order every folder list
+ * shows. Ids not listed (a folder created meanwhile) keep their relative order
+ * after the listed ones; unknown ids are ignored.
+ */
+export function reorderFolders(ids: string[]): void {
+  const folders = loadFolders();
+  const rank = new Map(ids.map((id, i) => [id, i]));
+  const listed = folders
+    .filter((f) => rank.has(f.id))
+    .sort((a, b) => rank.get(a.id)! - rank.get(b.id)!);
+  const rest = folders.filter((f) => !rank.has(f.id));
+  persistFolders([...listed, ...rest]);
+}
+
 /** Deletes a folder and drops every assignment pointing at it. */
 export function deleteFolder(id: string): void {
   persistFolders(loadFolders().filter((f) => f.id !== id));

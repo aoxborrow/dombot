@@ -128,3 +128,10 @@ export function countFolders(
   }
   return counts;
 }
+
+/** `order` with `id` moved to index `to` (clamped): a folder drag's result. */
+export function moveTo(order: string[], id: string, to: number): string[] {
+  const rest = order.filter((k) => k !== id);
+  const at = Math.max(0, Math.min(to, rest.length));
+  return [...rest.slice(0, at), id, ...rest.slice(at)];
+}

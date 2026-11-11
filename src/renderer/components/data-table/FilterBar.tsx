@@ -9,7 +9,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
-import { ChevronDown, Search, X } from 'lucide-react';
+import { ChevronDown, CircleMinus, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toolbarLayout } from './toolbar-layout';
 import {
@@ -24,8 +24,10 @@ import { DomainTableScroll } from '../../lib/domain-table-scroll';
 import { FilterPlusIcon } from '../icons/FilterPlusIcon';
 
 // A table's filter bar: "Filters" opens a menu of fields, and each field
-// in use becomes a chip (name | value | ×) whose dropdown edits it. Only the
-// filters you set take up room; there's no Reset, each chip clears itself.
+// in use becomes a chip (name | value | ⊖) whose dropdown edits it. Only the
+// filters you set take up room; there's no Reset, each chip clears itself:
+// a set chip's ⊖ clears its value (the chip stays, empty), and an empty
+// chip's × removes it.
 
 type Icon = ComponentType<{ className?: string }>;
 
@@ -263,19 +265,23 @@ export function FilterDropdown({
 export type FilterChipVariant = 'segmented' | 'flat';
 
 /**
- * One filter: [icon name value ×], its dropdown editing the value. With
- * nothing set it's a dashed grey outline with just its icon and name.
+ * One filter: [icon name value ⊖], its dropdown editing the value. With
+ * nothing set it's a dashed grey outline with just its icon and name, and ×.
+ * The end button clears a set chip's value (circled minus) and removes an empty
+ * chip (×), so clearing a filter never takes its chip away.
  */
 function FilterChip({
   field,
   open,
   onOpenChange,
+  onClear,
   onRemove,
   variant,
 }: {
   field: FilterField;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onClear: () => void;
   onRemove: () => void;
   variant: FilterChipVariant;
 }) {
@@ -353,9 +359,9 @@ function FilterChip({
         </DropdownMenuTrigger>
         <button
           type="button"
-          aria-label={`Remove ${field.label} filter`}
-          title="Remove filter"
-          onClick={onRemove}
+          aria-label={`${empty ? 'Remove' : 'Clear'} ${field.label} filter`}
+          title={empty ? 'Remove filter' : 'Clear filter'}
+          onClick={empty ? onRemove : onClear}
           className={cn(
             // Vertically centred where it always was, but the hitbox starts at
             // the icon (no padding on its left), over the trigger, so a click
@@ -378,7 +384,11 @@ function FilterChip({
                 : 'group-hover/remove:bg-[#4f9d6b]/14 dark:group-hover/remove:bg-[#4f9d6b]/40',
             )}
           >
-            <X className="size-3.5" />
+            {empty ? (
+              <X className="size-3.5" />
+            ) : (
+              <CircleMinus className="size-3.5" />
+            )}
           </span>
         </button>
       </span>
@@ -584,9 +594,9 @@ function rowOf(el: Element | null): HTMLElement | null {
  * after the last chip.
  *
  * Picking a field adds its chip with the value list open; unticking one in
- * the menu removes it. A chip stays until its × removes it, dashed and
- * empty while nothing is set, and never moves as its value is set or
- * cleared.
+ * the menu removes it. A set chip's clear button clears it back to dashed and
+ * empty; only an empty chip's × (or unticking it) removes it. A chip never
+ * moves as its value is set or cleared.
  */
 export function FilterBar({
   id,
@@ -755,6 +765,7 @@ export function FilterBar({
           field={f}
           open={openKey === f.key}
           onOpenChange={(open) => setOpenKey(open ? f.key : null)}
+          onClear={() => clearField(f)}
           onRemove={() => remove(f)}
           variant={variant}
         />

@@ -67,6 +67,7 @@ import {
   createFolder,
   deleteFolder,
   getFolders,
+  reorderFolders,
   updateFolder,
 } from '../services/folders';
 import { broadcastPortfolioChanged } from '../events';
@@ -848,7 +849,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'List folders',
       description:
-        'List your folders — DomBot’s own groupings of domains, as in Settings → Folders — with each one’s id, name, description, color, and how many domains it holds. Use a folder’s name or id with folder_rename, folder_delete, domain_set_folder, and portfolio_query’s `folder` filter.',
+        'List your folders — DomBot’s own groupings of domains, as in Settings → Folders — in the order the app shows them, with each one’s id, name, description, color, and how many domains it holds. Use a folder’s name or id with folder_rename, folder_delete, domain_set_folder, and portfolio_query’s `folder` filter.',
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
@@ -918,6 +919,29 @@ export function registerTools(server: McpServer): void {
       assertFolderNameFree(name, target.id);
       updateFolder(target.id, { name });
       return localWrite({ id: target.id, name, previousName: target.name });
+    },
+  );
+
+  server.registerTool(
+    'folder_order_set',
+    {
+      title: 'Reorder folders',
+      description:
+        'Set the order folders show in, everywhere the app lists them (Settings → Folders, the Folder filter and menus, folder_list). Pass folders by name or id in the order you want; any you leave out keep their order after them. Returns the new order.',
+      inputSchema: {
+        folders: z
+          .array(folderParam)
+          .min(1)
+          .describe('Folders in the order you want them, first to last.'),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async ({ folders }) => {
+      const ids = folders.map((f) => resolveFolder(f).id);
+      reorderFolders([...new Set(ids)]);
+      return localWrite({
+        folders: getFolders().folders.map((f) => ({ id: f.id, name: f.name })),
+      });
     },
   );
 
