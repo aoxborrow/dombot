@@ -149,8 +149,21 @@ export async function applyDomainOp(
       if (!(err instanceof OutcomeUnknownError)) throw err;
       result = done('unknown', err.message);
     }
-    if (result.status === 'unknown')
+    if (result.status === 'unknown') {
       result = await settleUnknown(target, op, before, request, done);
+      // A reset confirmed by re-reading: the history gets the hosts read.
+      if (
+        op.kind === 'nameservers' &&
+        op.registrarDefault &&
+        result.status === 'ok' &&
+        result.patch?.nameservers
+      )
+        seen.change = opChange(
+          { kind: 'nameservers', nameservers: result.patch.nameservers },
+          target.domainName,
+          known,
+        );
+    }
     if (op.kind === 'renew' && result.status === 'ok')
       noteRenewal(
         {
@@ -405,9 +418,17 @@ async function settleUnknown(
         ? confirmed({ locked: op.locked })
         : done('failed', NOT_APPLIED);
     case 'nameservers': {
-      // A reset with hosts is a set of Gandi LiveDNS hosts written as one:
-      // they're what to look for.
       if (!now.nameservers) return done('unknown', UNCONFIRMED);
+      // A reset with hosts is a set of Gandi LiveDNS hosts written as one.
+      // The registrar puts back its own hosts for the domain, not the ones
+      // typed: any set of its defaults confirms it, and anything else proves
+      // nothing either way.
+      if (op.registrarDefault) {
+        const hosts = normalizeNameservers(now.nameservers);
+        return isRegistrarDefaultSet(target.registrar, hosts)
+          ? confirmed({ nameservers: hosts })
+          : done('unknown', UNCONFIRMED);
+      }
       const set = (list: string[]) =>
         [...new Set(list.map(normalizeNameserver))].sort().join(' ');
       return set(now.nameservers) === set(op.nameservers)

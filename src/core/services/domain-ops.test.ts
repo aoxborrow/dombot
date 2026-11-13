@@ -1092,19 +1092,50 @@ describe('applyDomainOp — registrar default nameservers', () => {
     expect(setNameserversCached).toHaveBeenCalledTimes(1);
   });
 
-  it('confirms a Gandi LiveDNS set by re-reading when the response is lost', async () => {
+  it('confirms a lost Gandi reset from any set of its LiveDNS hosts, and records them', async () => {
     getDomainFeatures.mockReturnValue(['resetNameservers']);
     resetNameserversCached.mockRejectedValue(
       new OutcomeUnknownError('timed out'),
     );
-    const hosts = ['ns-220-a.gandi.net', 'ns-220-b.gandi.net'];
-    getDomainDetail.mockResolvedValue({ nameservers: hosts });
+    // Typed another domain's pair; Gandi put back this domain's own trio.
+    const actual = [
+      'ns-100-a.gandi.net',
+      'ns-100-b.gandi.net',
+      'ns-100-c.gandi.net',
+    ];
+    getDomainDetail.mockResolvedValue({ nameservers: actual });
     const r = await applyDomainOp(
       { registrar: 'gandi', accountId: 'gandi', domainName: 'a.com' },
-      { kind: 'nameservers', nameservers: hosts },
+      {
+        kind: 'nameservers',
+        nameservers: ['ns-220-a.gandi.net', 'ns-220-b.gandi.net'],
+      },
     );
     expect(r.status).toBe('ok');
-    expect(r.patch).toEqual({ nameservers: hosts });
+    expect(r.patch).toEqual({ nameservers: actual });
+    const event = putEvents.mock.calls[0][0][0] as unknown as {
+      after: string[];
+    };
+    expect(event.after).toEqual(actual);
+  });
+
+  it('leaves a lost Gandi reset unknown, never failed, when the re-read isn’t LiveDNS', async () => {
+    getDomainFeatures.mockReturnValue(['resetNameservers']);
+    resetNameserversCached.mockRejectedValue(
+      new OutcomeUnknownError('timed out'),
+    );
+    getDomainDetail.mockResolvedValue({
+      nameservers: ['ns1.afternic.com', 'ns2.afternic.com'],
+    });
+    const r = await applyDomainOp(
+      { registrar: 'gandi', accountId: 'gandi', domainName: 'a.com' },
+      {
+        kind: 'nameservers',
+        nameservers: ['ns-220-a.gandi.net', 'ns-220-b.gandi.net'],
+      },
+    );
+    expect(r.status).toBe('unknown');
+    expect(putEvents).not.toHaveBeenCalled();
   });
 
   it('records no change for a pending reset, whatever hosts the op carried', async () => {
