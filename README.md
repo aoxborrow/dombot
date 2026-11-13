@@ -266,7 +266,8 @@ third _adapter_ over the same `services/` core the UI uses — see
     distinct from `registrar_pricing`). `domain_get` and
     `domain_nameservers_get` serve from the detail cache when fresh, fetch live
     and write through otherwise, and take `refresh` to force a live fetch.
-  - _Writes (non-money):_ `domain_nameservers_set`, `domain_dns_set`,
+  - _Writes (non-money):_ `domain_nameservers_set`,
+    `domain_nameservers_reset` (back to the registrar's default), `domain_dns_set`,
     `domain_contacts_set`, `domain_email_forwarding_set`,
     `domain_url_forwarding_set`, `domain_set_autorenew`, `domain_set_lock`,
     `domain_set_privacy`. Forwarding (email alias and URL redirect) is

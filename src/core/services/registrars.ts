@@ -1872,6 +1872,37 @@ export async function setNameserversCached(
 }
 
 /**
+ * Puts a domain back on its registrar's own default nameservers. Their hosts
+ * vary (Gandi's LiveDNS hands out a set per domain), so on success the domain's
+ * nameservers are read back and patched into the caches; a read-back that fails
+ * or comes back empty leaves the caches for the next sync. Returns the raw
+ * result and the hosts read back (no throw for a registrar-side outcome).
+ */
+export async function resetNameserversCached(
+  name: RegistrarName,
+  domainName: string,
+  opts?: RequestOptions,
+  accountId?: string,
+): Promise<{ result: OperationResult; nameservers: string[] | null }> {
+  accountId = resolveDomainAccount(name, domainName, accountId).id;
+  const client = getRegistrarClient(name, accountId);
+  const result = await client.resetNameservers(domainName, opts);
+  if (!result.success || result.pending) return { result, nameservers: null };
+  let nameservers: string[] | null = null;
+  try {
+    const read = normalizeNameservers(
+      await client.getNameservers(domainName, opts),
+    );
+    if (read.length > 0) nameservers = read;
+  } catch {
+    // The reset went through; the next sync picks up the hosts.
+  }
+  if (nameservers)
+    patchDomainInCaches(name, domainName, { nameservers }, accountId);
+  return { result, nameservers };
+}
+
+/**
  * Renews a domain. The registrar's `OperationResult` doesn't carry the new
  * expiry, so on success we re-fetch the domain's detail (which writes through the
  * detail cache) and patch the fresh expiration/renewal/status into the portfolio

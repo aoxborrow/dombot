@@ -466,6 +466,16 @@ export class DemoRegistrar implements Registrar {
     });
   }
 
+  resetNameservers(
+    domainName: string,
+    opts?: RequestOptions,
+  ): Promise<OperationResult> {
+    return this.call('resetNameservers', opts, () => {
+      this.record(domainName).nameservers = defaultNameservers(this.name);
+      return this.ok('Nameservers reset to registrar defaults');
+    });
+  }
+
   lockDomain(
     domainName: string,
     opts?: RequestOptions,

@@ -98,6 +98,9 @@ export function opChange(
     case 'lock':
       return changeOf(DomainSetting.Lock, known.lock, op.locked);
     case 'nameservers':
+      // A reset's hosts are only known once read back (the dispatcher records
+      // those); any hosts on the op were never written as given.
+      if (op.registrarDefault) return null;
       return changeOf(
         DomainSetting.Nameservers,
         known.nameservers && normalizeNameservers(known.nameservers),

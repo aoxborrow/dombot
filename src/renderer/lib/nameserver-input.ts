@@ -1,6 +1,7 @@
 // Pure helpers behind the nameservers editor: parsing/validating the pasted
 // text, and deriving the preset list from the portfolio. No React, no IPC.
 
+import type { DomainOp } from '../../shared/ipc';
 import {
   defaultMarketNameservers,
   type MarketAccountView,
@@ -12,6 +13,16 @@ import {
   normalizeNameservers,
 } from '../../shared/domain-name';
 import { nameserverGroup } from './nameservers';
+
+/** A nameserver write: a full set of hosts, or the registrar's default. */
+export type NameserversOp = Extract<DomainOp, { kind: 'nameservers' }>;
+
+/** The op that puts a domain back on its registrar's default nameservers. */
+export const REGISTRAR_DEFAULT_OP: NameserversOp = {
+  kind: 'nameservers',
+  nameservers: [],
+  registrarDefault: true,
+};
 
 /** Registries cap the delegation at 13 nameservers. */
 export const MAX_NAMESERVERS = 13;

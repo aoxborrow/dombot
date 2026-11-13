@@ -47,6 +47,7 @@ export const domainOp = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('nameservers'),
     nameservers: z.array(hostLabel).max(13),
+    registrarDefault: z.boolean().optional(),
   }),
   z.object({
     kind: z.literal('urlForwarding'),
