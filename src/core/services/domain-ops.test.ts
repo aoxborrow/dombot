@@ -1092,6 +1092,39 @@ describe('applyDomainOp — registrar default nameservers', () => {
     expect(setNameserversCached).toHaveBeenCalledTimes(1);
   });
 
+  it('confirms a Gandi LiveDNS set by re-reading when the response is lost', async () => {
+    getDomainFeatures.mockReturnValue(['resetNameservers']);
+    resetNameserversCached.mockRejectedValue(
+      new OutcomeUnknownError('timed out'),
+    );
+    const hosts = ['ns-220-a.gandi.net', 'ns-220-b.gandi.net'];
+    getDomainDetail.mockResolvedValue({ nameservers: hosts });
+    const r = await applyDomainOp(
+      { registrar: 'gandi', accountId: 'gandi', domainName: 'a.com' },
+      { kind: 'nameservers', nameservers: hosts },
+    );
+    expect(r.status).toBe('ok');
+    expect(r.patch).toEqual({ nameservers: hosts });
+  });
+
+  it('records no change for a pending reset, whatever hosts the op carried', async () => {
+    getDomainFeatures.mockReturnValue(['resetNameservers']);
+    resetNameserversCached.mockResolvedValue({
+      result: { success: true, pending: true, message: 'Pending' },
+      nameservers: null,
+    });
+    const r = await applyDomainOp(
+      { registrar: 'spaceship', accountId: 'spaceship', domainName: 'a.com' },
+      {
+        kind: 'nameservers',
+        nameservers: ['ns1.a.net'],
+        registrarDefault: true,
+      },
+    );
+    expect(r.status).toBe('ok');
+    expect(putEvents).not.toHaveBeenCalled();
+  });
+
   it('a lost response stays unknown: there are no hosts to look for', async () => {
     getDomainFeatures.mockReturnValue(['resetNameservers']);
     resetNameserversCached.mockRejectedValue(
@@ -1103,5 +1136,6 @@ describe('applyDomainOp — registrar default nameservers', () => {
       reset,
     );
     expect(r.status).toBe('unknown');
+    expect(getDomainDetail).not.toHaveBeenCalled();
   });
 });

@@ -119,7 +119,7 @@ export async function applyDomainOp(
     isRegistrarDefaultSet(target.registrar, op.nameservers) &&
     getDomainFeatures(target).includes(Feature.ResetNameservers)
   )
-    op = { kind: 'nameservers', nameservers: [], registrarDefault: true };
+    op = { ...op, registrarDefault: true };
 
   // Gate up front so a known-unsupported op never makes a network call.
   const reason = unsupportedReason(
@@ -353,6 +353,14 @@ async function settleUnknown(
     }
   }
 
+  // A reset named no hosts, so a re-read has nothing to match.
+  if (
+    op.kind === 'nameservers' &&
+    op.registrarDefault &&
+    op.nameservers.length === 0
+  )
+    return done('unknown', UNCONFIRMED);
+
   let now: Partial<Domain> | null;
   try {
     now = await getDomainDetail(
@@ -397,9 +405,9 @@ async function settleUnknown(
         ? confirmed({ locked: op.locked })
         : done('failed', NOT_APPLIED);
     case 'nameservers': {
-      // The default hosts aren't known up front, so there's nothing to match.
-      if (op.registrarDefault || !now.nameservers)
-        return done('unknown', UNCONFIRMED);
+      // A reset with hosts is a set of Gandi LiveDNS hosts written as one:
+      // they're what to look for.
+      if (!now.nameservers) return done('unknown', UNCONFIRMED);
       const set = (list: string[]) =>
         [...new Set(list.map(normalizeNameserver))].sort().join(' ');
       return set(now.nameservers) === set(op.nameservers)
@@ -501,7 +509,11 @@ async function dispatch(
         // them there is no `after` to record.
         if (result.success && !result.pending)
           seen.change = nameservers
-            ? opChange({ ...op, nameservers }, domainName, seen.known ?? {})
+            ? opChange(
+                { kind: 'nameservers', nameservers },
+                domainName,
+                seen.known ?? {},
+              )
             : null;
         return fromResult(result, nameservers ? { nameservers } : undefined);
       }
