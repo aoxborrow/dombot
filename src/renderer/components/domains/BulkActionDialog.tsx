@@ -911,11 +911,15 @@ function Bucket({
         <span className="tabular-nums">{items.length}</span> {label}
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <ul className="mt-1 ml-5 max-h-40 overflow-y-auto text-xs">
+        {/* min-w-0 and a wrapping note: the dialog is a grid, so one long
+            unbreakable line would widen the whole dialog past its edge. */}
+        <ul className="mt-1 ml-5 max-h-40 min-w-0 overflow-y-auto text-xs">
           {items.map((it) => (
-            <li key={it.name} className="flex gap-2 py-0.5">
-              <span className="font-mono">{it.name}</span>
-              <span className="truncate text-muted-foreground">{it.note}</span>
+            <li key={it.name} className="flex min-w-0 gap-2 py-0.5">
+              <span className="shrink-0 font-mono">{it.name}</span>
+              <span className="min-w-0 text-muted-foreground [overflow-wrap:anywhere]">
+                {it.note}
+              </span>
             </li>
           ))}
         </ul>
