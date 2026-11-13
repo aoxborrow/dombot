@@ -1119,6 +1119,30 @@ describe('applyDomainOp — registrar default nameservers', () => {
     expect(event.after).toEqual(actual);
   });
 
+  it('leaves a lost Gandi reset unknown when the domain already had LiveDNS hosts', async () => {
+    getDomainFeatures.mockReturnValue(['resetNameservers']);
+    const hosts = ['ns-100-a.gandi.net', 'ns-100-b.gandi.net'];
+    getCachedPortfolio.mockReturnValueOnce({
+      domains: [
+        {
+          registrar: 'gandi',
+          accountId: 'gandi',
+          domainName: 'a.com',
+          nameservers: hosts,
+        },
+      ],
+    });
+    resetNameserversCached.mockRejectedValue(
+      new OutcomeUnknownError('timed out'),
+    );
+    getDomainDetail.mockResolvedValue({ nameservers: hosts });
+    const r = await applyDomainOp(
+      { registrar: 'gandi', accountId: 'gandi', domainName: 'a.com' },
+      { kind: 'nameservers', nameservers: hosts },
+    );
+    expect(r.status).toBe('unknown');
+  });
+
   it('leaves a lost Gandi reset unknown, never failed, when the re-read isn’t LiveDNS', async () => {
     getDomainFeatures.mockReturnValue(['resetNameservers']);
     resetNameserversCached.mockRejectedValue(

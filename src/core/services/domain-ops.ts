@@ -421,11 +421,16 @@ async function settleUnknown(
       if (!now.nameservers) return done('unknown', UNCONFIRMED);
       // A reset with hosts is a set of Gandi LiveDNS hosts written as one.
       // The registrar puts back its own hosts for the domain, not the ones
-      // typed: any set of its defaults confirms it, and anything else proves
+      // typed: a set of its defaults confirms it, unless the domain already
+      // had one (as custom nameservers, say), and anything else proves
       // nothing either way.
       if (op.registrarDefault) {
         const hosts = normalizeNameservers(now.nameservers);
-        return isRegistrarDefaultSet(target.registrar, hosts)
+        const had = isRegistrarDefaultSet(
+          target.registrar,
+          normalizeNameservers(before?.nameservers ?? []),
+        );
+        return !had && isRegistrarDefaultSet(target.registrar, hosts)
           ? confirmed({ nameservers: hosts })
           : done('unknown', UNCONFIRMED);
       }
