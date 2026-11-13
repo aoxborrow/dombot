@@ -901,6 +901,17 @@ function Bucket({
   items: { name: string; note: string }[];
 }) {
   const [open, setOpen] = useState(false);
+  // One entry per distinct note, its domains under it: a reason is usually
+  // the same for every domain at a registrar, so it's said once.
+  const groups = useMemo(() => {
+    const byNote = new Map<string, string[]>();
+    for (const it of items) {
+      const names = byNote.get(it.note);
+      if (names) names.push(it.name);
+      else byNote.set(it.note, [it.name]);
+    }
+    return [...byNote];
+  }, [items]);
   if (items.length === 0) return null;
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -911,15 +922,13 @@ function Bucket({
         <span className="tabular-nums">{items.length}</span> {label}
       </CollapsibleTrigger>
       <CollapsibleContent>
-        {/* min-w-0 and a wrapping note: the dialog is a grid, so one long
+        {/* min-w-0 and wrapping text: the dialog is a grid, so one long
             unbreakable line would widen the whole dialog past its edge. */}
-        <ul className="mt-1 ml-5 max-h-40 min-w-0 overflow-y-auto text-xs">
-          {items.map((it) => (
-            <li key={it.name} className="flex min-w-0 gap-2 py-0.5">
-              <span className="shrink-0 font-mono">{it.name}</span>
-              <span className="min-w-0 text-muted-foreground [overflow-wrap:anywhere]">
-                {it.note}
-              </span>
+        <ul className="mt-1 ml-5 flex max-h-40 min-w-0 flex-col gap-1.5 overflow-y-auto text-xs">
+          {groups.map(([note, names]) => (
+            <li key={note} className="min-w-0 [overflow-wrap:anywhere]">
+              <p className="text-muted-foreground">{note}</p>
+              <p className="font-mono">{names.join(', ')}</p>
             </li>
           ))}
         </ul>
