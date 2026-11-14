@@ -123,7 +123,56 @@ Listing statuses, from the spec:
   payouts, and CSV exports of most tabs.
 - **Roadmap** (upcoming, no dates): "External API: For Sale Page
   Management", "External API: Lease-to-Own Management" and "Improvement to
-  external domain verification".
+  external domain verification". All three still under Upcoming on
+  2026-11-11, and the release notes (latest October 2026) add nothing to
+  the REST API since the sales report export (June 2026).
+- **Alf** (June 2026): Spaceship's AI assistant in the dashboard can turn
+  For Sale pages on or off, set Buy It Now, Make an Offer and Contact Owner,
+  and edit descriptions. A chat for the user, not something DomBot can call.
+- **Lease-to-own in the REST API, per deal only:** a SafePay transaction can
+  be `type: leaseToOwn` with `ltoSettings` (`downPaymentPercentage`,
+  `installmentPeriods` 1–120, every payment at least 100), and the
+  checkout-link schema lists a `leaseToOwn` type as "coming soon". Neither
+  sets a listing's lease-to-own terms.
+
+### Spaceship MCP (checked 2026-11-11)
+
+Spaceship runs a hosted MCP server, `https://mcp.spaceship.com/mcp`, with a
+tools reference at
+<https://www.spaceship.com/knowledgebase/spaceship-mcp/> (updated
+2026-11-06). Its marketplace tools do what the REST API can't:
+
+| Tool                               | What it adds                                                                                                                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `marketplace_listing_get`          | `listingId`, `forSalePage`, `contactOwner`, `showOnPortfolio`, `qualityOffer`, `leaseToOwn` terms, `external`, `ownershipVerified`, `addedAt`, `forSalePageStatus`, `cartLinks` |
+| `marketplace_listing_update`       | `forSalePage`, `contactOwner`, `showOnPortfolio` (booleans), `qualityOffer` (+ deposit), `leaseToOwn` (`enabled`, `total`, `downPayment`, `finalPayment`, `installments` 1–120) |
+| `marketplace_listing_create`       | the same page settings at listing time (lease-to-own only by update)                                                                                                            |
+| `marketplace_listings_bulk_update` | one group (`prices`, `pageSettings`, or `leaseToOwn` off / the account's presets) on up to 5,000 listings or a filter; async                                                    |
+| `marketplace_listing_verify`       | check ownership now for one `verifying` listing (the dashboard's Verify Domains); `marketplace_listings_bulk_verify` does all of them                                           |
+
+Also: seller settings (portfolio page, Quality Offer), insights, negotiations
+and offers, leases, checkout links (list and deactivate), and CSV exports.
+Prices are USD strings; status values are snake_case (`on_sale`). The Seller
+Portfolio link that the dashboard shows on a For Sale page looks like
+`showOnPortfolio` plus the account's portfolio settings, but the reference
+doesn't say so outright.
+
+`forSalePageStatus` is one of `not_available`, `off`, `turning_off`,
+`needs_resolution`, `dns_records_missing`, `needs_dns_setup`,
+`connection_issue`, `connection_failed`, `connecting`, `live_ssl_pending`
+or `live`, so the page is a DNS connection of its own, apart from the
+ownership check (open question 6).
+
+**Auth is OAuth only.** The SellerHub key and secret get a 401 (as
+`X-API-Key`/`X-API-Secret` and as a bearer token). The 401 points at
+`https://id.service.spaceship.com` with scopes `openid offline_access
+mcp.spaceship.com mcp.spaceship.com.read mcp.spaceship.com.write`; read is
+always granted, write is a separate choice on the consent screen. The
+authorization server publishes a dynamic client registration endpoint
+(`/connect/register`) and PKCE (S256). Whether an app like DomBot may
+register itself and keep a refresh token hasn't been tried. Using it would
+mean a second, OAuth-backed client next to the key-based one, used only for
+what REST lacks.
 
 ### Observed (live, 2026-11-07)
 
@@ -194,8 +243,10 @@ the account's TXT record already in place, listed and `onSale`):
 - **`createSafePayTransaction`:** opens an escrow deal and invites the other
   party by email. That's brokering, not portfolio management, and it reaches
   a person.
-- **Lease-to-own and For Sale page settings:** not in the API yet (on the
-  roadmap). Revisit when Spaceship ships them.
+- **Lease-to-own and For Sale page settings:** not in the REST API yet (on
+  the roadmap). Spaceship's MCP has both (see above), behind OAuth only.
+  Revisit when the REST API ships them, or if DomBot takes on an OAuth
+  client for the MCP.
 
 ### What SellerHub doesn't have
 
@@ -362,9 +413,10 @@ registrar side, but handing the code to Spaceship stays in SellerHub.
   keeps that listing pending and sends it once verified (`listVerified`).
   SellerHub takes the name and keeps it `verifying` itself (open
   question 9), so it doesn't need that.
-- **No Recheck ownership.** The API has no "check now" (`verifyDns` is
-  false), so the check is SellerHub's background one, or the user's own
-  click on **Verify Domains** in the SellerHub dashboard. A name sitting in
+- **No Recheck ownership.** The REST API has no "check now" (`verifyDns`
+  is false; Spaceship's MCP has `marketplace_listing_verify`), so the
+  check is SellerHub's background one, or the user's own click on
+  **Verify Domains** in the SellerHub dashboard. A name sitting in
   `verifying` shows as pending, and goes to `onSale` when the check passes.
 - **No delist and list again to force a check.** It would start a new one,
   but may cost the listing its leads and checkout links (open question 4).
@@ -395,7 +447,7 @@ const SPACESHIP_CAPABILITIES: MarketCapabilities = {
   minOffer: true,
   floor: false,
   discount: false,
-  leaseToOwn: false, // in the dashboard; the API is on the roadmap
+  leaseToOwn: false, // dashboard and Spaceship's MCP (OAuth); REST on the roadmap
   tiers: null,
   sales: true,
   saleAuthCode: false,
@@ -445,8 +497,9 @@ Registrar-backed accounts came with Dynadot's market (#254, merged).
 2. **Writes (built):** list, reprice, minimum offer, display name,
    description, delist, through the List and Delist dialog, the bulk runner
    and the MCP listing tools. Checked live on testbot.io.
-3. **Later:** lease-to-own and For Sale page settings, when Spaceship's API
-   has them.
+3. **Later:** lease-to-own and For Sale page settings, when Spaceship's REST
+   API has them, or through Spaceship's MCP with an OAuth sign-in (see
+   Spaceship MCP).
 
 Not here: the registrar card pointing back, open for every
 registrar-backed market.
@@ -469,9 +522,21 @@ registrar-backed market.
 5. After a sale of an external name, what does Spaceship need: a transfer
    in with an auth code entered in SellerHub, or a push from another
    Spaceship account? Could DomBot's sale steps cover more of it?
-6. Does an external name's For Sale page need its DNS at Spaceship, or does
-   the listing only show in Spaceship search and the Seller Portfolio until
-   it does?
+6. Answered in part (2026-11-11): the For Sale page has its own DNS state
+   (`forSalePageStatus` in Spaceship's MCP: `needs_dns_setup`,
+   `dns_records_missing`, `connecting`, `live_ssl_pending`, `live`, …),
+   separate from the ownership check, so an external name's page needs DNS
+   pointed at Spaceship before it goes live. A name on
+   `launch1/launch2.spaceship.net` shows Spaceship's generic parking page
+   until the page is turned on, so the nameservers alone aren't enough.
+   NamePros users report that pointing A/CNAME records instead (without
+   Spaceship's nameservers) left the page failing on HTTP and HTTPS. Still
+   open: the exact records for the records route, whether a
+   Spaceship-registered name on basic DNS needs anything besides the toggle
+   (the release notes suggest Spaceship adds the connection itself and
+   removes conflicting ones such as URL redirects), and whether the listing
+   still shows in Spaceship search and the Seller Portfolio while the page
+   isn't live.
 7. Are the rate limits per key or per user, and do SellerHub and registrar
    calls share them?
 8. How is a description cleared: an empty string, or `null`?
