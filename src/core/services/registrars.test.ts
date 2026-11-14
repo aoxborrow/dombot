@@ -1,3 +1,9 @@
+import { qualifyCreationDate } from '../../shared/creation-date';
+vi.mock('./registry-creation', () => ({
+  recoverCreationDates: async (domains: unknown[]) =>
+    domains.map((d) => qualifyCreationDate(d as never)),
+  withCachedRegistryCreation: (d: unknown) => qualifyCreationDate(d as never),
+}));
 import { configureStore, hydrateStores } from '../storage/namespace';
 import { MemoryDocStore } from '../storage/doc-store';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -149,6 +155,7 @@ import {
   getRegistrarFeatures,
   getRegistrationQuote,
   getCachedPortfolio,
+  getCachedDetail,
   getDomainDetail,
   getMergedPortfolio,
   getPortfolio,
@@ -1489,5 +1496,168 @@ describe('Namecheap detail', () => {
     expect(clientMethods.getNameservers).not.toHaveBeenCalled();
     expect(resolveNs).not.toHaveBeenCalled();
     expect(store.detail['namecheap:a.com']).toBe(before);
+  });
+});
+
+describe('creation date validation and reconciliation', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-09T12:00:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
+  it('suppresses a future provider creation date', async () => {
+    storedCredentials.namecheap = { apiKey: 'fixture' };
+    const invalid = domain({
+      domainName: 'two-year.example',
+      registrar: 'namecheap',
+      createdDate: new Date('2026-12-28T00:00:00Z'),
+      expirationDate: new Date('2027-12-28T00:00:00Z'),
+      nameservers: ['dns1.registrar-servers.com'],
+    });
+    clientMethods.getDomain.mockResolvedValue(invalid);
+    const detail = await getDomainDetail('namecheap', 'two-year.example', true);
+    expect(detail?.createdDate).toBeNull();
+    expect(detail?.createdDateIssue).toBe('future');
+    expect(store.detail['namecheap:two-year.example'].data).toMatchObject({
+      createdDate: null,
+      createdDateIssue: 'future',
+    });
+  });
+
+  it('reconciles stale creation detail after corrected inventory sync', async () => {
+    storedCredentials.namecheap = { apiKey: 'fixture' };
+    const correct = domain({
+      domainName: 'two-year.example',
+      registrar: 'namecheap',
+      createdDate: new Date('2025-12-28T00:00:00Z'),
+      expirationDate: new Date('2027-12-28T00:00:00Z'),
+      renewalDate: new Date('2027-12-28T00:00:00Z'),
+    });
+    seedSlice('namecheap', [correct]);
+    const bad = new Date('2026-12-28T00:00:00Z');
+    store.detail['namecheap:two-year.example'] = {
+      data: {
+        ...correct,
+        createdDate: bad,
+        nameservers: ['dns1.registrar-servers.com'],
+      },
+      fetchedAt: 1,
+    };
+    listPortfolio.mockResolvedValue({ domains: [correct], errors: [] });
+    await syncRegistrar('namecheap');
+    expect(
+      getCachedPortfolio()?.domains.find(
+        (d) => d.domainName === 'two-year.example',
+      )?.createdDate,
+    ).toEqual(correct.createdDate);
+    expect(
+      getMergedPortfolio().domains.find(
+        (d) => d.domainName === 'two-year.example',
+      )?.createdDate,
+    ).toEqual(correct.createdDate);
+    expect(store.detail['namecheap:two-year.example'].fetchedAt).toEqual(1);
+  });
+  it('retains a valid known creation when a fresh list reports a future value', async () => {
+    storedCredentials.namecheap = { apiKey: 'fixture' };
+    const correct = domain({
+      domainName: 'two-year.example',
+      registrar: 'namecheap',
+      createdDate: new Date('2025-12-28'),
+      expirationDate: new Date('2027-12-28'),
+    });
+    seedSlice('namecheap', [correct]);
+    listPortfolio.mockResolvedValue({
+      domains: [{ ...correct, createdDate: new Date('2026-12-28') }],
+      errors: [],
+    });
+    await syncRegistrar('namecheap');
+    expect(getMergedPortfolio().domains[0].createdDate).toEqual(
+      correct.createdDate,
+    );
+  });
+
+  it('uses valid inventory when a forced detail read has a future creation', async () => {
+    storedCredentials.namecheap = { apiKey: 'fixture' };
+    const correct = domain({
+      domainName: 'two-year.example',
+      registrar: 'namecheap',
+      autoRenew: true,
+      createdDate: new Date('2025-12-28'),
+      expirationDate: new Date('2027-12-28'),
+    });
+    seedSlice('namecheap', [correct]);
+    clientMethods.getDomain.mockResolvedValue({
+      ...correct,
+      createdDate: new Date('2026-12-28'),
+    });
+    const detail = await getDomainDetail('namecheap', 'two-year.example', true);
+    expect(detail?.createdDate).toEqual(correct.createdDate);
+    expect(detail).not.toHaveProperty('autoRenew');
+  });
+
+  it('reconciles creation even when the list omits expiry and keeps quote age and other accounts', async () => {
+    storedCredentials.namecheap = { apiKey: 'fixture' };
+    const correct = domain({
+      domainName: 'two-year.example',
+      registrar: 'namecheap',
+      createdDate: new Date('2025-12-28'),
+    });
+    seedSlice('namecheap', [correct]);
+    const other = {
+      data: { ...correct, createdDate: new Date('2024-12-28') },
+      fetchedAt: 123,
+    };
+    store.detail['other:two-year.example'] = other;
+    store.detail['namecheap:two-year.example'] = {
+      data: {
+        ...correct,
+        createdDate: new Date('2026-12-28'),
+        renewalQuote: { renewal: 100, currency: 'USD' },
+      },
+      fetchedAt: 123,
+    };
+    listPortfolio.mockResolvedValue({ domains: [correct], errors: [] });
+    await syncRegistrar('namecheap');
+    expect(store.detail['namecheap:two-year.example']).toMatchObject({
+      fetchedAt: 123,
+      data: {
+        createdDate: correct.createdDate,
+        renewalQuote: { renewal: 100, currency: 'USD' },
+      },
+    });
+    expect(store.detail['other:two-year.example']).toBe(other);
+  });
+  it('keeps quote-only entries unread when inventory reports creation', async () => {
+    storedCredentials.namecheap = { apiKey: 'fixture' };
+    const correct = domain({
+      domainName: 'two-year.example',
+      registrar: 'namecheap',
+      createdDate: new Date('2025-12-28'),
+      expirationDate: new Date('2027-12-28'),
+    });
+    store.detail['namecheap:two-year.example'] = {
+      data: { renewalQuote: { renewal: 100, currency: 'USD' } },
+      fetchedAt: 123,
+    };
+    listPortfolio.mockResolvedValue({ domains: [correct], errors: [] });
+    await syncRegistrar('namecheap');
+    expect(getCachedDetail()).not.toHaveProperty('namecheap:two-year.example');
+    expect(
+      await getDomainDetail(
+        'namecheap',
+        'two-year.example',
+        false,
+        undefined,
+        true,
+      ),
+    ).toBeNull();
+    clientMethods.getDomain.mockResolvedValue({
+      ...correct,
+      nameservers: ['ns1.fixture.example'],
+    });
+    expect(
+      await getDomainDetail('namecheap', 'two-year.example'),
+    ).toMatchObject({ nameservers: ['ns1.fixture.example'] });
+    expect(clientMethods.getDomain).toHaveBeenCalledWith('two-year.example');
   });
 });
