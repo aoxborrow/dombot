@@ -31,4 +31,5 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
+      statuses: write # the shared review records the commit it reviewed
     uses: aoxborrow/skills/.github/workflows/reusable-claude-review.yml@main
