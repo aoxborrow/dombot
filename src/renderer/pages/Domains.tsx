@@ -776,7 +776,14 @@ const COLUMNS: Column[] = [
     label: 'Created',
     hideOnMobile: true,
     render: (d) => (
-      <span className="font-mono text-muted-foreground">
+      <span
+        className="font-mono text-muted-foreground"
+        title={
+          d.createdDateSource
+            ? `Registry RDAP verified ${d.createdDateSource.checkedAt}`
+            : undefined
+        }
+      >
         {fmtDate(d.createdDate)}
       </span>
     ),

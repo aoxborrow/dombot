@@ -1,3 +1,8 @@
+import {
+  recoverCreationDates,
+  withCachedRegistryCreation,
+} from './registry-creation';
+import { mergeDomainDetail } from '../../shared/creation-date';
 import { API_TIMEOUT_MS } from '../api-timeout';
 import { protectRegistrar } from './registrar-errors';
 import { importedRows } from '../../shared/imported-domains';
@@ -206,7 +211,7 @@ function reviveCachedDomain<T extends Partial<Domain>>(d: T): T {
     out.expirationDate = new Date(out.expirationDate);
   if (Array.isArray(out.nameservers))
     out.nameservers = normalizeNameservers(out.nameservers);
-  return out as T;
+  return withCachedRegistryCreation(out as T);
 }
 
 // Cache one client per account so we don't rebuild it on every call.
@@ -649,6 +654,9 @@ async function performInventorySync(
   const { registrar: name, id: accountId } = account;
   let generation = generations.get(accountId) ?? 0;
   const prev = readRegistrarEntry(accountId);
+  const previousByName = new Map(
+    (prev?.domains ?? []).map((d) => [d.domainName.toLowerCase(), d]),
+  );
   if (name === 'dynadot' && prev?.recovery) {
     if (prev.recovery.retryAt > Date.now()) return;
     if (scheduled && prev.recovery.state === 'failed') return;
@@ -660,6 +668,9 @@ async function performInventorySync(
     generation = (generations.get(accountId) ?? 0) + 1;
     generations.set(accountId, generation);
     const { domains, errors } = await listPortfolio([client]);
+    const recovered = errors[0]?.error
+      ? []
+      : await recoverCreationDates(domains.filter(hasDomainName));
     const error = errors[0]?.error;
     failure = error;
     entry = error
@@ -670,7 +681,12 @@ async function performInventorySync(
           lastErrorAt: Date.now(),
         }
       : {
-          domains: domains.filter(hasDomainName),
+          domains: recovered.map((d) =>
+            mergeDomainDetail(
+              previousByName.get(d.domainName.toLowerCase()) ?? d,
+              d,
+            ),
+          ),
           lastSyncedAt: Date.now(),
           lastError: null,
           lastErrorAt: null,
@@ -721,17 +737,34 @@ async function performInventorySync(
     // entries whose dates already match: each write persists the whole
     // namespace, and the dates rarely change between syncs.
     for (const domain of entry.domains) {
-      if (domain.expirationDate == null && domain.renewalDate == null) continue;
+      if (
+        domain.createdDate == null &&
+        domain.expirationDate == null &&
+        domain.renewalDate == null
+      )
+        continue;
       const key = detailKey(accountId, domain.domainName);
       const cached = readEntry<DetailRecord>('detail', key)?.data;
+      // Inventory dates do not turn a pricing-only cache entry into a detail read.
+      const reconcileCreation =
+        cached != null && hasDetail(cached) && domain.createdDate != null;
       if (
         !cached ||
-        (sameDate(domain.expirationDate, cached.expirationDate) &&
+        ((!reconcileCreation ||
+          sameDate(domain.createdDate, cached.createdDate)) &&
+          sameDate(domain.expirationDate, cached.expirationDate) &&
           sameDate(domain.renewalDate, cached.renewalDate))
       )
         continue;
       patchEntryData<DetailRecord>('detail', key, (detail) => ({
         ...detail,
+        ...(reconcileCreation
+          ? {
+              createdDate: domain.createdDate,
+              createdDateIssue: undefined,
+              createdDateSource: domain.createdDateSource,
+            }
+          : {}),
         ...(domain.expirationDate != null
           ? { expirationDate: domain.expirationDate }
           : {}),
@@ -1614,8 +1647,41 @@ export async function getDomainDetail(
     const view =
       cached && !isStale(cached) ? detailView(name, cached.data) : null;
     if (view) {
+      const summary = getCachedPortfolio()?.domains.find(
+        (d) =>
+          d.accountId === accountId &&
+          d.domainName.toLowerCase() === domainName.toLowerCase(),
+      );
+      let qualified = reviveCachedDomain(view);
+      if (summary?.createdDateIssue || summary?.createdDateSource)
+        qualified = mergeDomainDetail(
+          {
+            createdDate: summary.createdDate,
+            createdDateSource: summary.createdDateSource,
+            createdDateIssue: summary.createdDateIssue,
+          },
+          qualified,
+        );
+      if (!cacheOnly && qualified.createdDateIssue) {
+        [qualified] = await recoverCreationDates([
+          { ...qualified, domainName },
+        ]);
+        if ((generations.get(accountId) ?? 0) !== generation)
+          throw new Error(
+            'Account changed while loading detail; refresh the portfolio.',
+          );
+        if (qualified.createdDateSource)
+          patchEntryData<DetailRecord>('detail', key, (prior) => ({
+            ...prior,
+            domainName,
+            createdDate: qualified.createdDate,
+            createdDateSource: qualified.createdDateSource,
+            createdDateIssue: undefined,
+          }));
+      }
       return {
-        ...reviveCachedDomain(view),
+        ...qualified,
+
         registrar: name,
         accountId,
         accountLabel: accountById(accountId).label,
@@ -1663,14 +1729,35 @@ export async function getDomainDetail(
       'Account changed while loading detail; refresh the portfolio.',
     );
   if (domain) {
-    const result = withoutListOnly(name, {
-      ...domain,
-      registrar: name,
-      accountId,
-      accountLabel: accountById(accountId).label,
-      nameservers,
-      ...(createdDate ? { createdDate } : {}),
-    });
+    [domain] = await recoverCreationDates([domain], refresh);
+    if ((generations.get(accountId) ?? 0) !== generation)
+      throw new Error(
+        'Account changed while loading detail; refresh the portfolio.',
+      );
+    const listed = getCachedPortfolio()?.domains.find(
+      (d) =>
+        d.accountId === accountId &&
+        d.domainName.toLowerCase() === domainName.toLowerCase(),
+    );
+    const prior = readEntry<DetailRecord>('detail', key)?.data;
+    const known = mergeDomainDetail(
+      listed ?? {},
+      prior ? withoutQuote(prior) : {},
+    );
+    const result = mergeDomainDetail(
+      {
+        createdDate: known.createdDate,
+        createdDateSource: known.createdDateSource,
+        createdDateIssue: known.createdDateIssue,
+      },
+      withoutListOnly(name, {
+        ...domain,
+        registrar: name,
+        accountId,
+        accountLabel: accountById(accountId).label,
+        nameservers,
+      }),
+    );
     if ((generations.get(accountId) ?? 0) === generation)
       writeEntry('detail', key, withQuote(result));
     return result;
@@ -1715,8 +1802,7 @@ export function getMergedPortfolio(): {
     const extra = detail[domainKey(d)];
     return extra
       ? {
-          ...d,
-          ...extra,
+          ...mergeDomainDetail(d, extra),
           registrar: d.registrar,
           accountId: d.accountId,
           accountLabel: d.accountLabel,

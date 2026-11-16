@@ -1,3 +1,5 @@
+import { recoverCreationDates } from '../services/registry-creation';
+import { mergeDomainDetail } from '../../shared/creation-date';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type {
@@ -1090,8 +1092,9 @@ export function registerTools(server: McpServer): void {
         registrar,
         account.id,
       ).listDomains();
+      const recovered = await recoverCreationDates(domains);
       return json(
-        domains.map((d) => ({
+        recovered.map((d) => ({
           ...d,
           registrar,
           accountId: account.id,
@@ -1273,9 +1276,16 @@ export function registerTools(server: McpServer): void {
         (d) => d.accountId === account.id && toAscii(d.domainName) === key,
       );
       return json({
-        ...(row ?? {}),
-        ...(detail ??
-          (await getRegistrarClient(r, account.id).getDomain(domain))),
+        ...mergeDomainDetail(
+          row ?? {},
+          detail ??
+            (
+              await recoverCreationDates(
+                [await getRegistrarClient(r, account.id).getDomain(domain)],
+                refresh ?? false,
+              )
+            )[0],
+        ),
         registrar: r,
         accountId: account.id,
         accountLabel: account.label,
