@@ -1,5 +1,6 @@
 import { domainKey } from '../../shared/account-key';
 import { toAscii } from '../../shared/domain-name';
+import type { ManualArchiveReason } from '../../shared/ownership';
 import { create } from 'zustand';
 import { ExchangeRates } from '../../shared/exchange-rates';
 import { DETAIL_PACE, DetailLane } from '../lib/detail-lane';
@@ -253,6 +254,15 @@ interface AppState {
   /** Assign a domain to a folder, or unassign it with a null folderId. */
   assignFolder: (domainName: string, folderId: string | null) => Promise<void>;
 
+  /** Dropped or archived by hand, keyed by the normalized domain name. */
+  manualArchives: Record<string, ManualArchiveReason>;
+  loadManualArchives: () => Promise<void>;
+  /** Mark names dropped or archived, or clear the mark with null. */
+  setManualArchive: (
+    domainNames: string[],
+    reason: ManualArchiveReason | null,
+  ) => Promise<void>;
+
   // User-adjustable app settings (e.g. the background-sync interval). `null`
   // until first loaded.
   settings: AppSettings | null;
@@ -423,6 +433,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().loadPricing();
     await get().loadDomainEvents();
     await get().loadFolders();
+    await get().loadManualArchives();
     const meta = get().registrars?.find(
       (r) => r.name === name && (!accountId || r.accountId === accountId),
     );
@@ -458,6 +469,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().loadPricing();
     await get().loadDomainEvents();
     await get().loadFolders();
+    await get().loadManualArchives();
   },
 
   hydrateFromCache: async () => {
@@ -500,6 +512,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const local = Promise.all([
       get().loadDomainEvents(),
       get().loadFolders(),
+      get().loadManualArchives(),
       get().loadPurchases(),
       get().loadListPrices(),
       get().loadPricing(),
@@ -596,6 +609,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       void get().loadPricing();
       void get().loadDomainEvents();
       void get().loadFolders();
+      void get().loadManualArchives();
       void get().loadExchangeRates();
     } catch (err) {
       set({
@@ -867,6 +881,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
+  manualArchives: {},
+  loadManualArchives: async () => {
+    set({ manualArchives: await window.api.getManualArchives() });
+  },
+  setManualArchive: async (domainNames, reason) => {
+    await window.api.setManualArchive(domainNames, reason);
+    set((state) => {
+      const manualArchives = { ...state.manualArchives };
+      for (const name of domainNames) {
+        const key = toAscii(name);
+        if (reason === null) delete manualArchives[key];
+        else manualArchives[key] = reason;
+      }
+      return { manualArchives };
+    });
+  },
+
   settings: null,
   loadSettings: async () => {
     set({ settings: await window.api.getSettings() });
@@ -1054,6 +1085,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     await Promise.all([
       get().loadPurchases(),
       get().loadFolders(),
+      get().loadManualArchives(),
       get().loadPricing(),
       get().loadListPrices(),
       get().loadImportedDomains(),

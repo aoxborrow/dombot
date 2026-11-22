@@ -48,6 +48,7 @@ set passed to `EncryptedDocStore`.
 | —                                        | `domain-notes`            |        | note id                    | notes on a domain, or on one of its events        |
 | `domain-purchases` + `portfolio-changes` | `domain-events`           |        | event id                   | purchases, sales, arrivals, moves, drops          |
 | `folders` (`assignments` key)            | `domain-folders`          |        | name                       | name → folder id                                  |
+| —                                        | `manual-archive`          |        | name                       | dropped or archived by hand                       |
 | `folders` (`folders` key)                | `folders`                 |        | folder id                  | folder definitions                                |
 | `pricing-overrides`                      | `domain-prices`           |        | name                       | your manual renewal price, with its currency      |
 | —                                        | `domain-list-prices`      |        | name                       | your BIN price, minimum offer, and floor          |
@@ -259,24 +260,27 @@ number` (ms epoch, like `createdAt`, `startedAt`, `fetchedAt`); a calendar
 
 ## Owned and Archive
 
-The Domains page switches between **Owned** and **Archive**. Archive holds
-only names you no longer have; nothing you hold goes there by hand. Not
-renewing a name means turning off its auto-renew at the registrar. The full
+The Domains page switches between **Owned** and **Archive**. A name you
+still hold stays in Owned until you record a sale, or mark it dropped or
+archived (`manual-archive`). A market sale still under way stays in Owned.
+Not renewing a name at the registrar means turning off auto-renew. The full
 design is [owned-and-archive.md](owned-and-archive.md); the code is
 `src/shared/ownership.ts` (`standingOf`).
 
-- **Nothing about it is stored but the events.** Owned's states (Expiring,
-  Sold awaiting transfer) and Archive's labels are worked out when shown,
-  from the event log, the row, and the registration lookup.
-- **A name an account holds is always Owned.** A sale recorded on it shows a
-  Sold pill until the buyer takes it; auto-renew off within 30 days of expiry
-  shows Expiring, beside the registrar's Expired, Grace and Redemption pills.
+- **Owned and Archive are worked out when shown.** Owned's Expiring state,
+  a market sale awaiting transfer, and Archive's labels come from the event
+  log, the row, the registration lookup, and a hand mark in `manual-archive`.
+- **A sale you record, or a dropped or archived mark, leaves Owned** even
+  while an account still lists the name. A market sale still under way stays
+  in Owned with the Sold pill. Auto-renew off within 30 days of expiry shows
+  Expiring, beside the registrar's Expired, Grace and Redemption pills.
 - **Archive labels, in order:** Sold (a sale on record since the name last
   arrived), Deleted (the lookup says nobody holds it), Expired (it left after
-  its last known expiry: the `expires` on its `removed`), and Removed (it left
-  early with no sale; the one to review, as Sold or Dismiss).
-- **Imported names** reach Archive through a sale, the lookup, or 90 days
-  past their expiry date. No sync sees them leave.
+  its last known expiry: the `expires` on its `removed`), Dropped, Archived
+  (you put it there by hand), and Removed (it left early with no sale; the
+  one to review, as Sold or Dismiss).
+- **Imported names** reach Archive through a sale, a hand mark, the lookup,
+  or 90 days past their expiry date. No sync sees them leave.
 - **`added` brings a name back** to Owned, and a sale before it is history.
   A `moved` that finds a departed name in another account does the same for
   the removal.

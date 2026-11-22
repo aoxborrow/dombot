@@ -80,6 +80,7 @@ export default function App() {
     (s) => s.applyPortfolioCacheUpdate,
   );
   const loadFolders = useAppStore((s) => s.loadFolders);
+  const loadManualArchives = useAppStore((s) => s.loadManualArchives);
   const loadSettings = useAppStore((s) => s.loadSettings);
   const loadPurchases = useAppStore((s) => s.loadPurchases);
   const loadListPrices = useAppStore((s) => s.loadListPrices);
@@ -104,6 +105,7 @@ export default function App() {
   // cache hydration, so the Domains table paints folder chips immediately.
   useEffect(() => {
     void loadFolders();
+    void loadManualArchives();
     void loadSettings();
     void loadPurchases();
     void loadListPrices();
@@ -114,6 +116,7 @@ export default function App() {
     void loadRegistrars();
   }, [
     loadFolders,
+    loadManualArchives,
     loadSettings,
     loadPurchases,
     loadListPrices,

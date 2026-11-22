@@ -147,6 +147,9 @@ const api: DombotApi = {
   deleteFolder: (id) => ipcRenderer.invoke(IpcChannels.deleteFolder, id),
   assignFolder: (domainName, folderId) =>
     ipcRenderer.invoke(IpcChannels.assignFolder, domainName, folderId),
+  getManualArchives: () => ipcRenderer.invoke(IpcChannels.getManualArchives),
+  setManualArchive: (domainNames, reason) =>
+    ipcRenderer.invoke(IpcChannels.setManualArchive, domainNames, reason),
 
   // Settings
   getSettings: () => ipcRenderer.invoke(IpcChannels.getSettings),

@@ -59,6 +59,7 @@ export default function FoldersSettings() {
   const marketSales = useAppStore((s) => s.marketSales);
   const registrars = useAppStore((s) => s.registrars);
   const lookups = useAppStore((s) => s.registrationLookups);
+  const manualArchives = useAppStore((s) => s.manualArchives);
   const createFolder = useAppStore((s) => s.createFolder);
   const updateFolder = useAppStore((s) => s.updateFolder);
   const deleteFolder = useAppStore((s) => s.deleteFolder);
@@ -76,8 +77,13 @@ export default function FoldersSettings() {
     const rows = [...live, ...archiveRows(ownership, live, registrars)];
     const archived = (d: Domain) => {
       const key = toAscii(d.domainName);
-      return standingOf(d, ownership.get(key), lookups[key]?.registered)
-        .archived;
+      return standingOf(
+        d,
+        ownership.get(key),
+        lookups[key]?.registered,
+        undefined,
+        manualArchives[key],
+      ).archived;
     };
     return countFolders(rows, archived, assignments, folders);
   }, [
@@ -87,6 +93,7 @@ export default function FoldersSettings() {
     marketSales,
     registrars,
     lookups,
+    manualArchives,
     assignments,
     folders,
   ]);

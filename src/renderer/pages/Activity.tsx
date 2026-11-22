@@ -516,13 +516,23 @@ export default function Activity() {
   );
   const held = (e: DomainEvent) => heldNames.has(e.domain);
   const lookups = useAppStore((s) => s.registrationLookups);
+  const manualArchives = useAppStore((s) => s.manualArchives);
   /** Whether Domains shows the name in Archive (shared/ownership.ts). */
   const inArchive = (e: DomainEvent) => {
     const o = stateOf(e);
     const row =
       domains.find((d) => toAscii(d.domainName) === e.domain) ??
       (o ? archiveRows(new Map([[e.domain, o]]), domains, null)[0] : undefined);
-    return !!row && standingOf(row, o, lookups[e.domain]?.registered).archived;
+    return (
+      !!row &&
+      standingOf(
+        row,
+        o,
+        lookups[e.domain]?.registered,
+        undefined,
+        manualArchives[e.domain],
+      ).archived
+    );
   };
   /** The alert a new state answers: the row's own, unless sync closed it. */
   const answers = (e: DomainEvent) => {

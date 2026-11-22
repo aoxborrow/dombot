@@ -48,6 +48,7 @@ export function useTabMetrics(): TabMetrics {
   );
   const fx = useAppStore((s) => s.exchangeRates);
   const saleRecords = useSaleRecords();
+  const manualArchives = useAppStore((s) => s.manualArchives);
 
   return useMemo(() => {
     // The pages' own counts (docs/owned-and-archive.md).
@@ -57,6 +58,7 @@ export function useTabMetrics(): TabMetrics {
       registrationLookups,
       undefined,
       marketSales,
+      manualArchives,
     );
     const n = portfolio.length.toLocaleString('en-US');
     const domains =
@@ -111,6 +113,7 @@ export function useTabMetrics(): TabMetrics {
     events,
     marketSales,
     registrationLookups,
+    manualArchives,
     currency,
     numberFormat,
     fx,

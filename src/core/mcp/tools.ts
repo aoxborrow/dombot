@@ -35,6 +35,7 @@ import {
   setSale,
 } from '../services/purchases';
 import { getManualPrices, setManualPrice } from '../services/pricing';
+import { getManualArchives, manualArchiveOf } from '../services/manual-archive';
 import {
   setAlertsDismissed,
   setDeparturesDropped,
@@ -186,7 +187,15 @@ function resolveRegistrar(
     // back, so say that instead.
     const o = ownershipByDomain(eventsFor(key), marketSales()).get(key);
     const row = o && archiveRows(new Map([[key, o]]), [], null)[0];
-    const label = row && standingOf(row, o, cachedRegistered().get(key)).label;
+    const label =
+      row &&
+      standingOf(
+        row,
+        o,
+        cachedRegistered().get(key),
+        undefined,
+        manualArchiveOf(key),
+      ).label;
     if (label) {
       throw new Error(
         `"${domainName}" is in Archive (${label}) and none of your accounts reports it, so there's no registrar to act on. Pass "registrar" if it's in an account DomBot doesn't sync. If it just came back to one of your accounts, run portfolio_sync.`,
@@ -582,6 +591,7 @@ function runQuery(args: QueryArgs): QueryResult {
       listPrices: getListPrices(),
       pricing: getPortfolioPricing(),
       registered: cachedRegistered(),
+      manual: getManualArchives(),
       listedMarkets:
         args.listedOn || args.notListedOn ? listedMarkets() : undefined,
     },
@@ -720,7 +730,13 @@ function ownershipOf(key: string) {
     listed.find((d) => toAscii(d.domainName) === key) ??
     (o ? archiveRows(new Map([[key, o]]), listed, null)[0] : undefined);
   const s = row
-    ? standingOf(row, o, cachedRegistered().get(key))
+    ? standingOf(
+        row,
+        o,
+        cachedRegistered().get(key),
+        undefined,
+        manualArchiveOf(key),
+      )
     : { archived: false, label: null, salePending: false };
   return {
     ownership: s.archived ? ('archive' as const) : ('owned' as const),
@@ -823,7 +839,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Query portfolio',
       description:
-        'List, search, and filter your whole portfolio — every configured registrar plus the names you imported — the primary way to read the portfolio. Covers the names you own by default; pass `ownership` for Archive (names you no longer have) or both. To let a name go, turn its auto-renew off with domain_set_autorenew; nothing you hold goes to Archive by hand. Filter by registrar, source (synced or imported), TLD, folder, name, nameserver, market listing, asking price (for sale or not, BIN price, minimum offer and floor, with ranges), auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort (including by estimated renewal price) and page the results. With no filters it returns every name you own (paged), so use it as a plain list too. Each row says `ownership` (owned/archive), `archiveLabel` (sold, deleted: the lookup says nobody holds it, expired: it left after expiry, dropped: it left early and you marked it dropped, or removed: it left early with no sale, the one to review), `expiring` (owned, auto-renew off, expiring within 30 days), `salePending` (a sale recorded on a name you still hold), `source` (`imported`: no connected account reports it), and `inAccount` (false for an imported name or an Archive name no account reports — the registrar-backed domain_* tools can’t act on those). Rows also carry what DomBot keeps per name: `paid` (date, amount, currency, registered or purchased), `sold`, `notes`, `askingPrice` (BIN price, minimum offer, floor), and `renewalPrice` (DomBot’s yearly estimate and its source, as domain_renewal_price). Reads the local cache only — no registrar calls; run portfolio_sync first (or whenever this reports stale:true or an empty result) to refresh it. Returns { total, fetchedAt, stale, staleAccounts, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete; `staleAccounts` lists accounts whose own last sync is old even if another synced since (`stale` is true then too — registrar_sync just those, or portfolio_sync). Rows carry only the fields you need — call domain_get for a single domain’s full record.',
+        'List, search, and filter your whole portfolio — every configured registrar plus the names you imported — the primary way to read the portfolio. Covers the names you own by default; pass `ownership` for Archive (names you no longer have) or both. To let a name go at the registrar, turn its auto-renew off with domain_set_autorenew. Recording a sale, or marking a name dropped or archived, moves it to Archive even while an account still lists it. A market sale still under way stays in Owned until the market finishes it. Filter by registrar, source (synced or imported), TLD, folder, name, nameserver, market listing, asking price (for sale or not, BIN price, minimum offer and floor, with ranges), auto-renew/lock/privacy, status, and expiry (before/after a date or within N days); sort (including by estimated renewal price) and page the results. With no filters it returns every name you own (paged), so use it as a plain list too. Each row says `ownership` (owned/archive), `archiveLabel` (sold, deleted: the lookup says nobody holds it, expired: it left after expiry, dropped: you marked it dropped or it left early and you said so, archived: you moved it to Archive by hand, or removed: it left early with no sale, the one to review), `expiring` (owned, auto-renew off, expiring within 30 days), `salePending` (a market sale still under way on a name you hold), `source` (`imported`: no connected account reports it), and `inAccount` (false for an imported name or an Archive name no account reports — the registrar-backed domain_* tools can’t act on those). Rows also carry what DomBot keeps per name: `paid` (date, amount, currency, registered or purchased), `sold`, `notes`, `askingPrice` (BIN price, minimum offer, floor), and `renewalPrice` (DomBot’s yearly estimate and its source, as domain_renewal_price). Reads the local cache only — no registrar calls; run portfolio_sync first (or whenever this reports stale:true or an empty result) to refresh it. Returns { total, fetchedAt, stale, staleAccounts, registrars, errors, rows }: `total` is the full match count before paging (page with `limit`/`offset`); `errors` lists any registrar whose sync failed, so a non-empty `errors` means the result may be incomplete; `staleAccounts` lists accounts whose own last sync is old even if another synced since (`stale` is true then too — registrar_sync just those, or portfolio_sync). Rows carry only the fields you need — call domain_get for a single domain’s full record.',
       inputSchema: queryShape,
       annotations: { readOnlyHint: true },
     },
@@ -1575,7 +1591,7 @@ export function registerTools(server: McpServer): void {
     {
       title: 'Record a domain’s sale',
       description:
-        'For a single domain: record that you sold it, correct the sale on record, or undo it (`remove: true` deletes the sale). A name an account still holds stays in Owned with `salePending` until the buyer takes it, then moves to Archive as Sold with nothing to review; a name no account holds moves to Archive (Sold) at once. With no sale on record — or with `resolves` (an open "removed" alert) — it records a new sale, dated today when `date` is left out, and closes that alert; otherwise it edits the latest sale. Your note and the purchase are kept. DomBot-local — no registrar or marketplace call; recorded in the history as done by an agent. Returns the name’s `paid`, `sold`, `ownership`, `archiveLabel` and `salePending`.',
+        'For a single domain: record that you sold it, correct the sale on record, or undo it (`remove: true` deletes the sale). Recording the sale moves the name to Archive as Sold right away, even if an account still lists it. Undo with `remove: true`, which brings a name an account still lists back to Owned. With no sale on record — or with `resolves` (an open "removed" alert) — it records a new sale, dated today when `date` is left out, and closes that alert; otherwise it edits the latest sale. Your note and the purchase are kept. DomBot-local — no registrar or marketplace call; recorded in the history as done by an agent. Returns the name’s `paid`, `sold`, `ownership`, `archiveLabel` and `salePending`.',
       inputSchema: {
         domain,
         date: z

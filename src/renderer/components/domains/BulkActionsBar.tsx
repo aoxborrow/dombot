@@ -1,5 +1,7 @@
 import { useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
+  Archive,
+  ArchiveX,
   Building2,
   Calculator,
   CalendarPlus,
@@ -17,8 +19,10 @@ import {
   Server,
   Tag,
   Trash2,
+  Undo2,
   CopyCheck,
 } from 'lucide-react';
+import { toAscii } from '../../../shared/domain-name';
 import type { Domain, DomainOpKind, Folder } from '../../../shared/ipc';
 import { useAppStore } from '../../store/app';
 import {
@@ -45,7 +49,8 @@ import {
 } from '../data-table/SelectionBar';
 
 /** Ownership actions on the selection, each opening its dialog. */
-export type OwnershipAction = 'purchase' | 'sold' | 'delete';
+export type OwnershipAction =
+  'purchase' | 'sold' | 'dropped' | 'archive' | 'restore' | 'delete';
 
 const dots = <span className="-ml-[6px] opacity-50">…</span>;
 // After a T, whose stem leaves room under its bar where the dots sit, a
@@ -114,6 +119,7 @@ export function BulkActionsBar({
 }) {
   const bulk = useAppStore((s) => s.bulk);
   const registrars = useAppStore((s) => s.registrars);
+  const manualArchives = useAppStore((s) => s.manualArchives);
   const running = bulk?.status === 'running';
   // Delete applies only to names no connected account holds.
   const removable = domains.filter(
@@ -185,7 +191,33 @@ export function BulkActionsBar({
   const recordSale = (
     <DropdownMenuItem onSelect={() => onOwnership('sold')}>
       <Receipt className={icon} />
-      Record sale{dots}
+      Mark as Sold{dots}
+    </DropdownMenuItem>
+  );
+  const markDropped = (
+    <DropdownMenuItem onSelect={() => onOwnership('dropped')}>
+      <ArchiveX className={icon} />
+      Mark as Dropped{dots}
+    </DropdownMenuItem>
+  );
+  const archiveItem = (
+    <DropdownMenuItem onSelect={() => onOwnership('archive')}>
+      <Archive className={icon} />
+      Archive{dots}
+    </DropdownMenuItem>
+  );
+  const restorable = domains.filter(
+    (d) => manualArchives[toAscii(d.domainName)],
+  ).length;
+  const restoreItem = restorable > 0 && (
+    <DropdownMenuItem onSelect={() => onOwnership('restore')}>
+      <Undo2 className={icon} />
+      Move back to Owned
+      {restorable < domains.length && (
+        <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+          {restorable} of {domains.length}
+        </span>
+      )}
     </DropdownMenuItem>
   );
 
@@ -242,6 +274,7 @@ export function BulkActionsBar({
                   <DropdownMenuSeparator />
                   {recordPurchase}
                   {recordSale}
+                  {restoreItem}
                 </>
               ) : (
                 <>
@@ -262,6 +295,8 @@ export function BulkActionsBar({
                   </DropdownMenuItem>
                   {recordPurchase}
                   {recordSale}
+                  {markDropped}
+                  {archiveItem}
                   <DropdownMenuSeparator />
                   <MenuSub
                     icon={<Building2 className={icon} />}

@@ -17,6 +17,7 @@ import {
   putEvents,
 } from './domain-events';
 import { assignFolder } from './folders';
+import { setManualArchive } from './manual-archive';
 import { setManualPrice } from './pricing';
 import { deleteListPrices } from './list-prices';
 import { removeImportedDomains, takeOverImported } from './imported-domains';
@@ -347,5 +348,6 @@ export function deleteDomains(
     deleteListPrices([domain]);
     removeImportedDomains([domain]);
   }
+  setManualArchive(removable, null);
   return removable.length;
 }

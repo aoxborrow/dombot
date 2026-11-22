@@ -3,30 +3,35 @@ import { toAscii, toUnicode } from './domain-name';
 import type { Domain, RegistrarMeta, RegistrationLookup } from './ipc';
 import type { MarketSale } from './markets';
 
-// Owned or Archive (docs/owned-and-archive.md). Archive holds only names you
-// no longer have; nothing you hold goes there by hand. What's stored is the
-// event log: a sale you recorded, and the removals and arrivals sync saw.
-// Everything shown (Expiring, Sold awaiting transfer, and each Archive label)
-// is worked out from those, the row, and the registration lookup. Events are
-// taken in the order they were recorded (their ids), so marking a name Sold
-// today counts after the sync that saw it, whatever sale date you type.
-// A market sale still under way counts as a sale too: sync writes its `sold`
-// event only once the market completes it, often after the name has left.
+// Owned or Archive (docs/owned-and-archive.md). A name you still hold is
+// Owned unless you recorded a sale, or marked it dropped or archived by
+// hand. A market sale still under way stays Owned (salePending) until the
+// market finishes it. A name an account no longer reports is Archive. An
+// imported name also reaches Archive through the lookup, or
+// IMPORTED_ARCHIVE_DAYS past its expiry. Events are taken in the order they
+// were recorded (their ids), so a sale recorded today counts after the sync
+// that saw the name, whatever sale date you type.
 
 /**
- * Why a name is in Archive, in the order they're checked: you recorded a
- * sale; the lookup says nobody holds it; it left after its expiry; it left
- * early and you marked it dropped; it left early with no sale recorded (the
- * one that asks for review).
+ * Why a name is in Archive. `sold`: you recorded a sale, or a market sale
+ * finished. `dropped`: you marked it dropped, or it left early and you said
+ * so. `archived`: you moved it to Archive by hand. `deleted`: the lookup
+ * says nobody holds it. `expired`: it left after expiry, or an imported
+ * name is long past expiry. `removed`: it left early with no sale recorded
+ * (the one that asks for review).
  */
 export type ArchiveLabel =
-  'sold' | 'deleted' | 'expired' | 'dropped' | 'removed';
+  'sold' | 'deleted' | 'expired' | 'dropped' | 'archived' | 'removed';
+
+/** A name you put in Archive yourself, while an account may still list it. */
+export type ManualArchiveReason = 'dropped' | 'archived';
 
 export const ARCHIVE_LABELS: readonly ArchiveLabel[] = [
   'sold',
   'deleted',
   'expired',
   'dropped',
+  'archived',
   'removed',
 ];
 
@@ -134,8 +139,7 @@ export interface Standing {
   archived: boolean;
   /** Set exactly when `archived`. */
   label: ArchiveLabel | null;
-  /** Owned, with a sale recorded or under way at a market: the buyer
-   *  hasn't taken it yet. */
+  /** Owned, with a market sale still under way: the buyer hasn't taken it. */
   salePending: boolean;
   /** Owned, auto-renew off, expiring within {@link EXPIRING_DAYS}. */
   expiring: boolean;
@@ -168,9 +172,11 @@ function daysUntil(
 
 /**
  * A row's standing. `registered` is the registration lookup's answer for the
- * name (false: nobody holds it), when there is one. Synced names an account
- * holds are always Owned; departed rows (see {@link archiveRows}) are always
- * Archive; an imported name reaches Archive through a sale, the lookup, or
+ * name (false: nobody holds it), when there is one. `manual` is a dropped
+ * or archived mark you set by hand. A sale you recorded moves the name to
+ * Archive even while an account still lists it. A market sale still under
+ * way stays Owned. Departed rows (see {@link archiveRows}) are Archive. An
+ * imported name also reaches Archive through the lookup, or
  * {@link IMPORTED_ARCHIVE_DAYS} past its expiry.
  */
 export function standingOf(
@@ -181,10 +187,13 @@ export function standingOf(
   o: Ownership | undefined,
   registered?: boolean | null,
   now: number = Date.now(),
+  manual?: ManualArchiveReason | null,
 ): Standing {
-  // A sale recorded, or one under way at a market: either way it's sold
-  // (left during a market sale, the buyer took it).
-  const sale = o?.sale ?? o?.marketSale ?? null;
+  // A sale you recorded. A market sale still under way is separate: it stays
+  // in Owned until the market finishes it.
+  const recorded = o?.sale ?? null;
+  const pendingMarket = recorded ? null : (o?.marketSale ?? null);
+  const sale = recorded ?? pendingMarket;
   if (d.departed) {
     const label: ArchiveLabel = sale
       ? 'sold'
@@ -192,14 +201,22 @@ export function standingOf(
         ? 'deleted'
         : o?.removal?.expires
           ? 'expired'
-          : o?.removal?.dropped
+          : manual === 'dropped' || o?.removal?.dropped
             ? 'dropped'
-            : 'removed';
+            : manual === 'archived'
+              ? 'archived'
+              : 'removed';
     return { ...OWNED, archived: true, label };
+  }
+  // You said it's sold, dropped, or archived. Leave Owned now, even if an
+  // account still lists the name or you added it by hand.
+  if (recorded) return { ...OWNED, archived: true, label: 'sold' };
+  if (manual === 'dropped' || manual === 'archived') {
+    return { ...OWNED, archived: true, label: manual };
   }
   const days = daysUntil(d.expirationDate, now);
   if (d.source === 'imported') {
-    const label: ArchiveLabel | null = sale
+    const label: ArchiveLabel | null = pendingMarket
       ? 'sold'
       : registered === false
         ? 'deleted'
@@ -210,7 +227,7 @@ export function standingOf(
   }
   return {
     ...OWNED,
-    salePending: !!sale,
+    salePending: !!pendingMarket,
     expiring:
       !d.autoRenew &&
       !d.autoRenewUnknown &&
@@ -223,8 +240,9 @@ export function standingOf(
 /**
  * Of `domains` (the synced ones and the ones you added), those in Owned,
  * not already in Archive: what the Domains page and its tab count. And of
- * those, the ones that still renew, less the names you've sold that the
- * buyer hasn't taken yet: what the Renewals page and its tab add up.
+ * those, the ones that still renew, less a market sale still under way:
+ * what the Renewals page and its tab add up. `manual` is the hand marks
+ * (dropped or archived) that take a name out of Owned.
  */
 export function ownedAndRenewing(
   domains: Domain[],
@@ -232,13 +250,20 @@ export function ownedAndRenewing(
   lookups: Record<string, RegistrationLookup | null>,
   now: number = Date.now(),
   marketSales: readonly MarketSale[] = [],
+  manual: Readonly<Record<string, ManualArchiveReason>> = {},
 ): { owned: Domain[]; renewing: Domain[] } {
   const ownership = ownershipByDomain(events, marketSales);
   const owned: Domain[] = [];
   const renewing: Domain[] = [];
   for (const d of domains) {
     const key = toAscii(d.domainName);
-    const st = standingOf(d, ownership.get(key), lookups[key]?.registered, now);
+    const st = standingOf(
+      d,
+      ownership.get(key),
+      lookups[key]?.registered,
+      now,
+      manual[key],
+    );
     if (st.archived) continue;
     owned.push(d);
     if (!st.salePending) renewing.push(d);

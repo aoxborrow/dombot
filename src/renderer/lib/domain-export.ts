@@ -54,6 +54,8 @@ export async function exportAllDomains(): Promise<number | null> {
         d,
         ownership.get(key),
         s.registrationLookups[key]?.registered,
+        undefined,
+        s.manualArchives[key],
       );
       return st.label ?? (st.salePending ? 'sold' : null);
     },

@@ -54,6 +54,10 @@ vi.mock('../services/pricing', () => ({
   getManualPrices: () => getManualPrices(),
   setManualPrice: (...a: unknown[]) => setManualPrice(...a),
 }));
+vi.mock('../services/manual-archive', () => ({
+  getManualArchives: () => ({}),
+  manualArchiveOf: () => null,
+}));
 const setAlertsDismissed = vi.fn();
 const setDeparturesDropped = vi.fn();
 const setSaleTransferred = vi.fn();
@@ -638,14 +642,8 @@ describe('end-to-end handlers', () => {
         inAccount: r.inAccount,
       }));
 
-    // Sold but still held: Owned, awaiting transfer.
+    // A sale you recorded leaves Owned even while the account still lists it.
     expect(await rows({ sort: 'domainName' })).toEqual([
-      {
-        domainName: 'escrow.com',
-        ownership: 'owned',
-        archiveLabel: null,
-        inAccount: true,
-      },
       {
         domainName: 'kept.com',
         ownership: 'owned',
@@ -654,6 +652,12 @@ describe('end-to-end handlers', () => {
       },
     ]);
     expect(await rows({ ownership: 'archive', sort: 'domainName' })).toEqual([
+      {
+        domainName: 'escrow.com',
+        ownership: 'archive',
+        archiveLabel: 'sold',
+        inAccount: true,
+      },
       {
         domainName: 'gone.com',
         ownership: 'archive',
@@ -1225,8 +1229,12 @@ describe('history, purchases, sales and alerts', () => {
       },
       'agent',
     );
-    // A held name: Owned, and the mock still has its sale.
-    expect(out).toMatchObject({ ownership: 'owned', salePending: true });
+    // The mock still has the sale, so the name reads as Archive / Sold.
+    expect(out).toMatchObject({
+      ownership: 'archive',
+      archiveLabel: 'sold',
+      salePending: false,
+    });
 
     listEvents.mockReturnValue([]);
     await expect(
