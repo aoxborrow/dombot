@@ -71,6 +71,20 @@ export function usesPerNameQuote(
   );
 }
 
+/** One explicit per-name check can also use endpoints unsuitable for bulk sync. */
+export function supportsOwnedRenewalQuote(
+  registrar: RegistrarName,
+  tld: string,
+): boolean {
+  return (
+    ALWAYS_QUOTE.has(registrar) ||
+    SPECIFIC_CAPABLE.has(registrar) ||
+    registrar === 'porkbun' ||
+    registrar === 'godaddy' ||
+    (registrar === 'namecheap' && !isUniformTld(tld))
+  );
+}
+
 /** A per-name renewal quote fetched during Sync and stored with the detail. */
 export interface RenewalQuote {
   renewal: number | null;

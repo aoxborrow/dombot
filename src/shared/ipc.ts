@@ -170,6 +170,7 @@ export const IpcChannels = {
   getBulkJob: 'bulk:get',
   stepBulk: 'bulk:step',
   getPortfolioPricing: 'pricing:getPortfolio',
+  getRegistrarRenewalQuote: 'pricing:getRegistrarRenewalQuote',
   getManualPrices: 'pricing:getManualPrices',
   setManualPrice: 'pricing:setManualPrice',
   getExchangeRates: 'rates:get',
@@ -709,6 +710,15 @@ export interface RenewalPricing {
   renewal: number | null;
   currency: string;
   source: PriceSource;
+  /** The displayed estimate can be checked with a per-domain registrar read. */
+  canCheckQuote?: true;
+}
+
+/** A per-domain renewal price returned by an explicit registrar check. */
+export interface RegistrarRenewalQuote {
+  renewal: number;
+  currency: string;
+  checkedAt: number;
 }
 
 // ── Domain operations ───────────────────────────────────────────────────────
@@ -1018,6 +1028,9 @@ export interface DombotApi {
    *  Computed locally (base rates + TLD rates + Sync-captured quotes +
    *  manual overrides). */
   getPortfolioPricing: () => Promise<Record<string, RenewalPricing>>;
+  getRegistrarRenewalQuote: (
+    target: DomainTarget,
+  ) => Promise<RegistrarRenewalQuote | null>;
   /** The exchange rates fetched since the shipped archive, keyed by month or
    *  day; convert with `ExchangeRates` (docs/exchange-rates.md). */
   getExchangeRates: () => Promise<RateRows>;
