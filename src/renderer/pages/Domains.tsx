@@ -34,6 +34,7 @@ import {
 import type {
   Domain,
   DomainOp,
+  DomainTarget,
   Folder,
   RegistrarName,
   RegistrationLookup,
@@ -58,6 +59,7 @@ import {
 } from '../components/RegistrarLogo';
 import { DomainLink } from '../components/domains/DomainLink';
 import { NotesButton } from '../components/domains/NotesButton';
+import { RenewalQuoteTrigger } from '../components/domains/RenewalQuoteTrigger';
 import { BulkNotesDialog } from '../components/domains/BulkNotesDialog';
 import {
   DeleteDomainsDialog,
@@ -315,22 +317,36 @@ function RenewalCell({
   loading,
   preferred,
   numberFormat,
+  quoteTarget,
 }: {
   info: RenewalPricing | undefined;
   loading: boolean;
   preferred: string;
   numberFormat: NumberFormatId;
+  quoteTarget?: DomainTarget;
 }) {
   if (info === undefined && loading) return <CellSkeleton align="right" />;
   if (!info || info.renewal == null) {
     return <span className="text-muted-foreground/50">—</span>;
   }
-  return (
-    <span
-      className="font-medium tabular-nums"
-      title={`Renewal source: ${SOURCE_LABEL[info.source]}`}
-    >
-      {formatMoneyNumber(info.renewal, info.currency, preferred, numberFormat)}
+  const amount = formatMoneyNumber(
+    info.renewal,
+    info.currency,
+    preferred,
+    numberFormat,
+  );
+  const title = `Renewal source: ${SOURCE_LABEL[info.source]}`;
+  return info.canCheckQuote && quoteTarget ? (
+    <RenewalQuoteTrigger
+      key={domainKey(quoteTarget)}
+      target={quoteTarget}
+      estimate={amount}
+      title={title}
+      numberFormat={numberFormat}
+    />
+  ) : (
+    <span className="font-medium tabular-nums" title={title}>
+      {amount}
     </span>
   );
 }
@@ -2464,6 +2480,11 @@ export default function Domains() {
             loading={pricingLoading}
             preferred={currency}
             numberFormat={settings?.numberFormat ?? DEFAULT_NUMBER_FORMAT}
+            quoteTarget={
+              !archiveView && d.source === 'registrar' && d.accountId
+                ? targetOf(d)
+                : undefined
+            }
           />
         ),
       };

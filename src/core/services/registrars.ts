@@ -30,7 +30,11 @@ import {
 } from './accounts';
 import { domainKey } from '../../shared/account-key';
 import { connectFailureMessage } from '../../shared/registrar-help';
-import { normalizeNameservers, toAscii } from '../../shared/domain-name';
+import {
+  assertDomainName,
+  normalizeNameservers,
+  toAscii,
+} from '../../shared/domain-name';
 import { currencyInfo } from '../../shared/money';
 import { expiryDay, type AccountHoldings } from '../../shared/sync-diff';
 import { recordSync } from './domain-history';
@@ -62,6 +66,7 @@ import {
 import {
   resolvePricing,
   setTldRate,
+  supportsOwnedRenewalQuote,
   tldOf,
   usesPerNameQuote,
   type RenewalQuote,
@@ -81,6 +86,7 @@ import type {
   Domain,
   DomainTarget,
   RegistrarAccount,
+  RegistrarRenewalQuote,
   RegistrarConfigField,
   RegistrarDefinition,
   Portfolio,
@@ -778,18 +784,20 @@ export async function retryDeferredSyncs(): Promise<boolean> {
 
 /**
  * Fetch a fresh per-name renewal quote for a domain (the premium-accurate price
- * a registrar reports for a domain you own), or null on any failure. Only called
- * for `usesPerNameQuote` registrars, so `getPricing` is always supported here.
+ * a registrar reports for a domain you own), or null on any failure.
+ * Callers select registrars that support per-domain pricing.
  */
 async function fetchRenewalQuote(
   name: RegistrarName,
   domain: string,
   accountId: string,
+  options?: RequestOptions,
 ): Promise<RenewalQuote | null> {
   try {
-    const pricing = await getRegistrarClient(name, accountId).getPricing(
-      domain,
-    );
+    const client = getRegistrarClient(name, accountId);
+    const pricing = options
+      ? await client.getPricing(domain, options)
+      : await client.getPricing(domain);
     return {
       renewal: typeof pricing.renewal === 'number' ? pricing.renewal : null,
       currency: pricing.currency ?? 'USD',
@@ -1281,24 +1289,83 @@ export function getPortfolioPricing(): Record<string, RenewalPricing> {
   for (const d of portfolio.domains) {
     const registrar = d.registrar as RegistrarName;
     const key = domainKey(d);
+    const price = resolvePricing(
+      registrar,
+      d.domainName,
+      quotes[key]?.data.renewalQuote,
+      d.accountId,
+    );
+    const canCheckQuote =
+      (price.source === 'tld' || price.source === 'base') &&
+      d.accountId &&
+      !d.deleted &&
+      supportsOwnedRenewalQuote(registrar, tldOf(d.domainName));
     out[key] = {
-      ...resolvePricing(
-        registrar,
-        d.domainName,
-        quotes[key]?.data.renewalQuote,
-        d.accountId,
-      ),
+      ...price,
       accountId: d.accountId,
+      ...(canCheckQuote ? { canCheckQuote: true } : {}),
     };
   }
   return out;
 }
 
-/**
- * A single domain's renewal price with a fresh per-name quote when the registrar
- * supports one — the live, premium-accurate lookup for the MCP tool. The UI never
- * uses this; it reads the Sync-populated `getPortfolioPricing` instead.
- */
+/** Check only the selected holding, without falling back to a saved price. */
+export async function getRegistrarRenewalQuote(
+  target: DomainTarget,
+): Promise<RegistrarRenewalQuote | null> {
+  const domain = assertDomainName(target.domainName);
+  const { registrar, id } = resolveDomainAccount(
+    target.registrar,
+    domain,
+    target.accountId,
+  );
+  if (!supportsOwnedRenewalQuote(registrar, tldOf(domain))) return null;
+  if (
+    !readRegistrarEntry(id)?.domains.some(
+      (row) => !row.deleted && toAscii(row.domainName) === domain,
+    )
+  ) {
+    throw new Error(
+      'Sync the selected registrar account before checking this domain.',
+    );
+  }
+
+  const options = { retries: 0, timeout: 15_000 };
+  let quote: RenewalQuote | null;
+  if (registrar === 'namecheap') {
+    // Namecheap's getPricing returns a TLD rate. Only domains.check can
+    // return a price for this exact premium name.
+    try {
+      const rows = await getRegistrarClient(registrar, id).checkAvailability(
+        [domain],
+        options,
+      );
+      const match = rows.find((row) => toAscii(row.domainName) === domain);
+      quote = match?.premium
+        ? { renewal: match.renewalPrice ?? null, currency: 'USD' }
+        : null;
+    } catch {
+      return null;
+    }
+  } else {
+    quote = await fetchRenewalQuote(registrar, domain, id, options);
+  }
+  if (
+    quote?.renewal == null ||
+    !Number.isFinite(quote.renewal) ||
+    quote.renewal < 0 ||
+    !currencyInfo(quote.currency)
+  ) {
+    return null;
+  }
+  return {
+    renewal: quote.renewal,
+    currency: quote.currency,
+    checkedAt: Date.now(),
+  };
+}
+
+/** The MCP renewal lookup can fall back to saved prices and estimates. */
 export async function getRenewalPriceLive(
   name: RegistrarName,
   domain: string,

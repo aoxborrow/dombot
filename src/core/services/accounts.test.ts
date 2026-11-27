@@ -72,6 +72,7 @@ vi.mock('@aoxborrow/registrar-client', async (original) => {
             'registerDomain',
             'transferIn',
             'getPricing',
+            'checkAvailability',
             'getTransferOut',
             'getDomainForwarding',
             'resolveCustomerId',
@@ -401,6 +402,111 @@ describe('multi-account storage, routing and portable migration', () => {
     ).toThrow(/disabled/);
     for (const fake of fakes.providers.values())
       expect(fake.renewDomain).not.toHaveBeenCalled();
+  });
+
+  it('checks one held renewal estimate without updating the portfolio or retrying', async () => {
+    const company = await twoAccounts();
+    const target = {
+      registrar: 'dynadot',
+      accountId: company.id,
+      domainName: 'company.com',
+    } as const;
+    const personal = fakes.providers.get('personal')!.getPricing;
+    const provider = fakes.providers.get('company')!.getPricing;
+    const before = getPortfolioPricing();
+    expect(before[domainKey(target)]).toMatchObject({
+      source: 'base',
+      canCheckQuote: true,
+    });
+    expect(provider).not.toHaveBeenCalled();
+
+    provider.mockResolvedValueOnce({ renewal: 24.5, currency: 'EUR' });
+    const check = () =>
+      invoke('getRegistrarRenewalQuote', coreMethods.getRegistrarRenewalQuote, [
+        target,
+      ]);
+    expect(await check()).toEqual({
+      renewal: 24.5,
+      currency: 'EUR',
+      checkedAt: expect.any(Number),
+    });
+    expect(provider).toHaveBeenCalledExactlyOnceWith('company.com', {
+      retries: 0,
+      timeout: 15_000,
+    });
+
+    provider.mockResolvedValueOnce({ registration: 7, currency: 'USD' });
+    expect(await check()).toBeNull();
+    provider.mockResolvedValueOnce({ renewal: NaN, currency: 'USD' });
+    expect(await check()).toBeNull();
+    expect(getPortfolioPricing()).toEqual(before);
+    expect(personal).not.toHaveBeenCalled();
+  });
+
+  it('rejects a renewal quote for a different account, unlisted name, or deleted row before provider access', async () => {
+    const company = await twoAccounts();
+    const raw = readEntry<{ domains: ProviderDomain[] }>(
+      'portfolio',
+      company.id,
+    )!;
+    writeEntry('portfolio', company.id, {
+      ...raw.data,
+      domains: [
+        ...raw.data.domains,
+        { ...domain('deleted.com'), deleted: true },
+      ],
+    });
+    const check = (domainName: string) =>
+      invoke('getRegistrarRenewalQuote', coreMethods.getRegistrarRenewalQuote, [
+        { registrar: 'dynadot', accountId: company.id, domainName },
+      ]);
+
+    await expect(check('personal.com')).rejects.toThrow(/different account/i);
+    await expect(check('unknown.com')).rejects.toThrow(/sync the selected/i);
+    await expect(check('deleted.com')).rejects.toThrow(/sync the selected/i);
+    for (const provider of fakes.providers.values())
+      expect(provider.getPricing).not.toHaveBeenCalled();
+  });
+
+  it('uses only an exact premium Namecheap quote and leaves standard names on their estimate', async () => {
+    await saveRegistrarCredentials(
+      'namecheap',
+      { username: 'user', apiKey: 'quote-fixture', clientIp: '192.0.2.1' },
+      'namecheap',
+    );
+    getRegistrarClient('namecheap', 'namecheap');
+    const provider = fakes.providers.get('quote-fixture')!;
+    writeEntry('portfolio', 'namecheap', {
+      domains: [
+        { ...domain('held.io'), registrar: 'namecheap' },
+        { ...domain('standard.com'), registrar: 'namecheap' },
+      ],
+      lastSyncedAt: Date.now(),
+      lastError: null,
+    });
+    const check = (domainName: string) =>
+      invoke('getRegistrarRenewalQuote', coreMethods.getRegistrarRenewalQuote, [
+        { registrar: 'namecheap', accountId: 'namecheap', domainName },
+      ]);
+
+    expect(
+      getPortfolioPricing()['namecheap:standard.com'].canCheckQuote,
+    ).toBeUndefined();
+    expect(await check('standard.com')).toBeNull();
+    expect(provider.checkAvailability).not.toHaveBeenCalled();
+    provider.checkAvailability.mockResolvedValueOnce([
+      { domainName: 'unrelated.io', premium: true, renewalPrice: 50 },
+      { domainName: 'held.io', premium: false, renewalPrice: 10 },
+    ]);
+    expect(await check('held.io')).toBeNull();
+    provider.checkAvailability.mockResolvedValueOnce([
+      { domainName: 'HELD.IO', premium: true, renewalPrice: 55 },
+    ]);
+    expect(await check('held.io')).toMatchObject({
+      renewal: 55,
+      currency: 'USD',
+    });
+    expect(provider.getPricing).not.toHaveBeenCalled();
   });
 
   it('routes UI renewals, detail, manual prices, and persisted bulk work to the selected account', async () => {
