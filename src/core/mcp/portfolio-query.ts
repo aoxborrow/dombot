@@ -27,6 +27,7 @@ import {
 import {
   standingOf,
   type ArchiveLabel,
+  type ManualArchiveReason,
   type Ownership,
   type Standing,
 } from '../../shared/ownership';
@@ -134,6 +135,8 @@ export interface RowExtras {
   listedMarkets?: Map<string, Set<string>>;
   /** The registration lookup's cached answers (Archive's Deleted). */
   registered?: Map<string, boolean>;
+  /** Hand marks (dropped or archived), keyed by `toAscii(name)`. */
+  manual?: Readonly<Record<string, ManualArchiveReason>>;
 }
 
 /** Only the fields an agent needs for a row — drops `syncedAt`/`deleted`, adds
@@ -156,14 +159,15 @@ export interface QueryRow {
   ownership: 'owned' | 'archive';
   /**
    * Why it's in Archive: `sold`, `deleted` (the lookup says nobody holds
-   * it), `expired` (it left after its expiry), `dropped` (it left early and
-   * you marked it dropped), or `removed` (it left early with no sale
+   * it), `expired` (it left after its expiry), `dropped` (you marked it
+   * dropped, or it left early and you said so), `archived` (you moved it
+   * to Archive by hand), or `removed` (it left early with no sale
    * recorded; the one to review).
    */
   archiveLabel: ArchiveLabel | null;
   /** Owned, auto-renew off, and expiring within 30 days. */
   expiring: boolean;
-  /** A sale recorded on a name you still hold: the buyer hasn't taken it. */
+  /** A market sale still under way on a name you hold. */
   salePending: boolean;
   /** Whether an account still reports it. When false, the fields an account
    *  reports are empty and the registrar is the last one it was seen at. */
@@ -298,7 +302,13 @@ export function queryPortfolio(
     let s = standing.get(d);
     if (!s) {
       const key = toAscii(d.domainName);
-      s = standingOf(d, ownership.get(key), extras.registered?.get(key), now);
+      s = standingOf(
+        d,
+        ownership.get(key),
+        extras.registered?.get(key),
+        now,
+        extras.manual?.[key],
+      );
       standing.set(d, s);
     }
     return s;

@@ -159,15 +159,13 @@ export function SaleDialog({
     <Dialog open onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="sm:max-w-md">
         <ActionHeader
-          title={mode === 'mark' ? 'Record sale' : 'Edit sale'}
+          title={mode === 'mark' ? 'Mark as Sold' : 'Edit sale'}
           names={[domain.domainName]}
         />
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
             {mode === 'mark'
-              ? domain.departed || domain.source === 'imported'
-                ? 'Moves to Archive as Sold. Nothing changes at the registrar.'
-                : 'Shows as Sold until the buyer takes it, then moves to Archive. Nothing changes at the registrar.'
+              ? 'Moves to Archive as Sold. Nothing changes at the registrar.'
               : 'What you sold it for and when, and what the sale cost you.'}
           </p>
           <div className="flex flex-col gap-2">
@@ -248,7 +246,7 @@ export function SaleDialog({
             Cancel
           </Button>
           <Button type="button" disabled={saving} onClick={() => void save()}>
-            {mode === 'mark' ? 'Record sale' : 'Save'}
+            {mode === 'mark' ? 'Mark as Sold' : 'Save'}
           </Button>
         </DialogFooter>
       </DialogContent>

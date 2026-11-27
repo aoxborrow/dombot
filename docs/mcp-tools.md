@@ -62,14 +62,15 @@ take `refresh` to fetch live and write the result through.
   `{ total, fetchedAt, stale, registrars, errors, rows }`.
   - Each row carries `ownership`, `archiveLabel`, `expiring`, `salePending`
     and `inAccount` ([owned-and-archive.md](owned-and-archive.md)). A name an
-    account holds is always `owned`. `archiveLabel` is `sold`, `deleted` (the
-    registration lookup says nobody holds it), `expired` (it left after its
-    expiry) or `removed` (it left early with no sale; the one to review).
+    account holds is `owned` unless you recorded a sale or marked it dropped
+    or archived. `archiveLabel` is `sold`, `deleted` (the registration lookup
+    says nobody holds it), `expired` (it left after its expiry), `dropped`,
+    `archived`, or `removed` (it left early with no sale; the one to review).
     `expiring`: owned, auto-renew off, expiring within 30 days.
-    `salePending`: a sale recorded, or under way at a market, on a name you
-    still hold.
-  - To let a name go, turn its auto-renew off with `domain_set_autorenew`, as
-    in the app. Nothing you hold goes to Archive by hand.
+    `salePending`: a market sale under way on a name you still hold.
+  - To let a name go at the registrar, turn its auto-renew off with
+    `domain_set_autorenew`. Recording a sale moves it to Archive even while
+    an account still lists it.
   - Each row also carries what DomBot keeps for the name: `paid` (date,
     amount, currency, and `kind`: registered or purchased), `sold`, `notes`,
     `askingPrice` (`amount`, `minOffer`, `floor`, `currency`) and
@@ -138,10 +139,10 @@ portfolio: synced, imported, or with history.
   Returns `{ domain, paid, sold }`.
 - **`domain_sale_set`** — `date?`, `amount?`, `currency?`, `resolves?`,
   `remove?`. Records a sale (dated today by default) when none is on record
-  or `resolves` names a new alert, otherwise edits the latest. A name an
-  account holds stays in Owned with `salePending` until the buyer takes it;
-  one no account holds is in Archive as Sold. `remove: true` deletes the sale
-  on record (the app's Undo). Returns
+  or `resolves` names a new alert, otherwise edits the latest. The name
+  moves to Archive as Sold right away, even if an account still lists it.
+  `remove: true` deletes the sale on record (the app's Undo) and a name an
+  account still lists comes back to Owned. Returns
   `{ domain, paid, sold, ownership, archiveLabel, salePending }`.
 - **`domain_sale_transferred_set`** — `transferred`. Marks the latest sale
   handed over (the Sales tab's Mark complete) though an account still shows

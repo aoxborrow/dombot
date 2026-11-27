@@ -20,6 +20,10 @@ import {
   updateFolder,
   reorderFolders,
 } from '../services/folders';
+import {
+  getManualArchives,
+  setManualArchive,
+} from '../services/manual-archive';
 import { getManualPrices, setManualPrice } from '../services/pricing';
 import {
   getPurchases,
@@ -448,6 +452,13 @@ export const coreMethods: { [K in CoreMethodName]: ApiMethod<K> } = {
     z.tuple([s.domainName, z.string().nullable()]),
     async (domainName, folderId) => {
       assignFolder(domainName, folderId);
+    },
+  ),
+  getManualArchives: method(none, async () => getManualArchives()),
+  setManualArchive: method(
+    z.tuple([s.domainNameList, z.enum(['dropped', 'archived']).nullable()]),
+    async (domainNames, reason) => {
+      setManualArchive(domainNames, reason);
     },
   ),
 

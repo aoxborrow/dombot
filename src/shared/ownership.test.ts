@@ -164,14 +164,33 @@ describe('a market sale under way', () => {
 });
 
 describe('standingOf', () => {
-  it('keeps every name an account holds in Owned', () => {
-    const o = owner([event({ type: 'sold', source: 'user' })]);
-    expect(standingOf(row(), o, false, NOW)).toEqual({
+  it('keeps a name an account holds in Owned', () => {
+    expect(standingOf(row(), undefined, false, NOW)).toEqual({
       archived: false,
       label: null,
-      salePending: true,
+      salePending: false,
       expiring: false,
     });
+  });
+
+  it('moves a name an account still holds to Archive when you record the sale', () => {
+    const o = owner([event({ type: 'sold', source: 'user' })]);
+    expect(standingOf(row(), o, false, NOW)).toEqual({
+      archived: true,
+      label: 'sold',
+      salePending: false,
+      expiring: false,
+    });
+  });
+
+  it('archives a name you still hold when you mark it dropped or archived', () => {
+    expect(standingOf(row(), undefined, null, NOW, 'dropped')).toMatchObject({
+      archived: true,
+      label: 'dropped',
+    });
+    expect(
+      standingOf(row({ source: 'imported' }), undefined, null, NOW, 'archived'),
+    ).toMatchObject({ archived: true, label: 'archived' });
   });
 
   it('shows Expiring for auto-renew off within 30 days only', () => {
@@ -352,9 +371,29 @@ describe('archiveRows', () => {
 describe('ownedAndRenewing', () => {
   const names = (ds: Domain[]) => ds.map((d) => d.domainName);
   const kept = row({ domainName: 'kept.com' });
-  // Sold, and the buyer hasn't taken it: still yours, but it won't renew.
+  // A market sale under way: still yours, but it won't renew.
   const sold = row({ domainName: 'a.com' });
-  const events = [event({ type: 'sold', source: 'user' })];
+  const events: DomainEvent[] = [];
+  const marketSales: MarketSale[] = [
+    {
+      market: 'afternic',
+      accountId: 'afternic-1',
+      id: 'tx-1',
+      name: 'a.com',
+      soldOn: '2026-10-01',
+      status: 'in_progress',
+      statusRaw: 'PENDING_TRANSFER',
+      kind: 'buy_now',
+      price: '2499',
+      commission: null,
+      commissionEstimated: false,
+      net: null,
+      currency: 'USD',
+      installments: null,
+      paidOutOn: null,
+      action: 'transfer',
+    },
+  ];
   // A name you added, long past its expiry: in Archive as Expired.
   const lapsed = row({
     domainName: 'lapsed.net',
@@ -380,9 +419,22 @@ describe('ownedAndRenewing', () => {
       events,
       lookups,
       NOW,
+      marketSales,
     );
     expect(names(owned)).toEqual(['kept.com', 'a.com']);
     expect(names(renewing)).toEqual(['kept.com']);
+  });
+
+  it('leaves out a sale you recorded and a name you archived by hand', () => {
+    const { owned } = ownedAndRenewing(
+      [kept, sold],
+      [event({ type: 'sold', source: 'user' })],
+      {},
+      NOW,
+      [],
+      { 'kept.com': 'archived' },
+    );
+    expect(names(owned)).toEqual([]);
   });
 
   it('keeps a name you added until it has been expired a while', () => {

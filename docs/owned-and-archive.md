@@ -1,11 +1,16 @@
 # Owned and Archive — letting a name go
 
-Built. It replaced Mark as Dropped, Archive, and the Hidden folder with one
-rule, and Delete now applies only to names you no longer hold:
+Built. Delete applies only to names no connected account holds. A name you
+still hold stays in Owned until you record a sale, or mark it dropped or
+archived. Those three are by hand, because a registrar can keep listing a
+name after you deleted it, and some names are added with no API at all.
 
-**Archive holds only names you no longer have.** Nothing you hold goes there
-by hand. Not renewing a name means turning off its auto-renew, the real
-setting at the registrar, which DomBot already reads and changes.
+**Archive holds names you no longer want on the Owned list.** A sale you
+record moves the name there as Sold even while an account still lists it.
+Mark as Dropped and Archive do the same, as Dropped or Archived. Nothing
+changes at the registrar. A market sale still under way stays in Owned with
+the Sold pill until the market finishes it. Not renewing a name at the
+registrar still means turning off auto-renew.
 
 The rule lives in `src/shared/ownership.ts` (`standingOf`): every screen,
 the MCP tools and the CSV export read Owned and Archive from there.
@@ -104,11 +109,16 @@ Archive from its expiry dates, with no status to set.
   101domain can't change it through their APIs, so the toggle stays disabled
   with the reason it shows now (`unsupportedReason`); you change it there and
   sync reads it back.
-- **Record a sale.** A name you still hold keeps its row in Owned with the Sold
-  pill until the buyer takes it, then moves to Archive as Sold with no review:
-  sync already writes that removal as dismissed for a name you've labeled
-  (`src/shared/sync-diff.ts`). The pill doubles as a reminder to finish the
-  transfer. Undo deletes the sale.
+- **Mark as Sold** (Record a sale). The name moves to Archive as Sold right
+  away, even if an account still lists it. Nothing changes at the registrar.
+  Undo deletes the sale, and a name the account still lists comes back to
+  Owned. Sync still writes that later removal as dismissed for a name you've
+  labeled (`src/shared/sync-diff.ts`).
+- **Mark as Dropped** and **Archive.** The name moves to Archive as Dropped
+  or Archived while an account may still list it, or when you added it by
+  hand and no sync will see it leave. Move back to Owned clears that mark.
+  The marks live in `manual-archive`, not as `dropped` or `archived` events:
+  those event types are stripped on import.
 - **A market sale under way counts too.** Sync writes a market sale's `sold`
   event only once the market completes it (it could still be cancelled), and
   Afternic completes one after the transfer, so without this a name would
@@ -123,12 +133,9 @@ Archive from its expiry dates, with no status to set.
   Archive names. In a bulk selection it shows how many it applies to
   ("Delete … 12 of 50"), the way Activity's bulk actions do.
 
-That's the whole list. **Gone:** Mark as Dropped and its date field, Archive,
-Move back to Owned (the only manual label left is a sale, and undoing it is
-part of the sale dialog), the Hidden folder, and Delete for held names. A held
-name's row menu ends at Record sale, with no red item. (Mark dropped, on
-Activity, is a different thing: it answers a departure that already
-happened.)
+**Gone:** the Hidden folder, Mark as Dropped's date field, and Delete for
+held names. (Mark dropped, on Activity, is a different thing: it answers a
+departure that already happened.)
 
 ## Renewals
 
@@ -181,12 +188,12 @@ No migration concerns: get the model right while there are few users.
 - **`domain_ownership_set` goes.** Its jobs were Dropped, Archived and Move
   back to Owned. Undoing a sale moves to `domain_sale_set` (a `remove: true`
   flag), whose description today points at `domain_ownership_set` for that.
-- **`domain_sale_set`** no longer says it moves the name to Archive: a held
-  name stays in Owned until it leaves.
-- **`portfolio_query`**: `archiveLabel` is `sold`, `deleted`, `expired` or
-  `removed`. Rows gain `expiring` (Owned, auto-renew off, within 30 days) and
-  `salePending` (a sale recorded, or under way at a market, on a name you
-  still hold). `hidden` and the
+- **`domain_sale_set`** moves the name to Archive as Sold even while an
+  account still lists it. `remove: true` undoes the sale.
+- **`portfolio_query`**: `archiveLabel` is `sold`, `deleted`, `expired`,
+  `dropped`, `archived`, or `removed`. Rows gain `expiring` (Owned,
+  auto-renew off, within 30 days) and `salePending` (a market sale under
+  way on a name you still hold). `hidden` and the
   "Hidden" folder filter go. The `autoRenew` filter already exists.
 - **Folder tools** lose the built-in Hidden folder.
 - **Agents let a name go** with `domain_set_autorenew`, the same as you.

@@ -29,6 +29,7 @@ const LABEL: Record<BadgeType, string> = {
   deleted: 'Deleted',
   expired: 'Expired',
   dropped: 'Dropped',
+  archived: 'Archived',
 };
 
 const TYPE_STYLE: Record<BadgeType, string> = {
@@ -39,6 +40,7 @@ const TYPE_STYLE: Record<BadgeType, string> = {
   deleted: GRAY,
   expired: GRAY,
   dropped: GRAY,
+  archived: GRAY,
   sold: 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400',
   moved: KEPT,
   renewed: KEPT,
@@ -54,6 +56,7 @@ export const TYPE_TEXT: Record<BadgeType, string> = {
   deleted: 'text-muted-foreground',
   expired: 'text-muted-foreground',
   dropped: 'text-muted-foreground',
+  archived: 'text-muted-foreground',
   sold: 'text-emerald-600 dark:text-emerald-400',
   moved: 'text-indigo-600 dark:text-indigo-400',
   renewed: 'text-indigo-600 dark:text-indigo-400',
@@ -69,6 +72,7 @@ const TYPE_DOT: Record<BadgeType, string> = {
   deleted: GRAY_DOT,
   expired: GRAY_DOT,
   dropped: GRAY_DOT,
+  archived: GRAY_DOT,
   sold: 'bg-emerald-500 dark:bg-emerald-400',
   moved: KEPT_DOT,
   renewed: KEPT_DOT,

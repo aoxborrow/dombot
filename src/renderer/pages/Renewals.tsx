@@ -125,11 +125,12 @@ export default function Renewals() {
     domainEvents,
     marketSales,
     registrationLookups,
+    manualArchives,
   } = useAppStore();
 
-  // The names in Owned (synced, and the ones you added by hand), less those
-  // you've sold that the buyer hasn't taken yet. Archive is never counted
-  // (docs/owned-and-archive.md).
+  // The names in Owned (synced, and the ones you added by hand), less a
+  // market sale still under way. A sale you recorded, and names you marked
+  // dropped or archived, are in Archive and are not counted.
   const allDomains = useMemo(
     () =>
       ownedAndRenewing(
@@ -138,6 +139,7 @@ export default function Renewals() {
         registrationLookups,
         undefined,
         marketSales,
+        manualArchives,
       ).renewing,
     [
       syncedDomains,
@@ -145,6 +147,7 @@ export default function Renewals() {
       domainEvents,
       marketSales,
       registrationLookups,
+      manualArchives,
     ],
   );
   const accounts = useAppStore((s) => s.registrars);

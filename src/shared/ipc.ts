@@ -17,6 +17,7 @@ import type {
 } from '@aoxborrow/registrar-client';
 import type { NumberFormatId } from './money';
 import type { DomainEvent } from './domain-events';
+import type { ManualArchiveReason } from './ownership';
 import type {
   MarketAccountView,
   MarketBulkJob,
@@ -205,6 +206,8 @@ export const IpcChannels = {
   reorderFolders: 'folders:reorder',
   deleteFolder: 'folders:delete',
   assignFolder: 'folders:assign',
+  getManualArchives: 'manualArchive:list',
+  setManualArchive: 'manualArchive:set',
   getSettings: 'settings:get',
   updateSettings: 'settings:update',
   getPurchases: 'purchases:list',
@@ -1178,6 +1181,16 @@ export interface DombotApi {
   deleteFolder: (id: string) => Promise<void>;
   /** Assign a domain to a folder, or unassign it with a null folderId. */
   assignFolder: (domainName: string, folderId: string | null) => Promise<void>;
+  /** Hand marks that put a name in Archive, keyed by the normalized name. */
+  getManualArchives: () => Promise<Record<string, ManualArchiveReason>>;
+  /**
+   * Mark names dropped or archived, or clear the mark with null. Nothing
+   * changes at the registrar.
+   */
+  setManualArchive: (
+    domainNames: string[],
+    reason: ManualArchiveReason | null,
+  ) => Promise<void>;
 
   // Settings
   /** Read the user-adjustable app settings. */

@@ -1,6 +1,8 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { domainKey } from '../../../shared/account-key';
 import {
+  Archive,
+  ArchiveX,
   Building2,
   Calculator,
   CalendarPlus,
@@ -15,6 +17,7 @@ import {
   Server,
   Tag,
   Trash2,
+  Undo2,
   CopyCheck,
 } from 'lucide-react';
 import type { Domain, DomainOp, Folder } from '../../../shared/ipc';
@@ -54,17 +57,17 @@ const icon = 'text-muted-foreground';
  * The trailing "⋯" menu on each row (pinned to the right of the Domain cell),
  * in the bulk bar's Actions order. For a name in Owned or Listings: Refresh
  * (Edit details for an imported name), Folder, Notes, Record purchase (or
- * Edit purchase or registration once one is recorded), Record sale (or Edit
- * sale, where undoing it lives); then Registrar (auto-renew, privacy and lock
+ * Edit purchase or registration once one is recorded), Mark as Sold (or Edit
+ * sale, where undoing it lives), Mark as Dropped, and Archive; then Registrar (auto-renew, privacy and lock
  * as checkboxes, which flip with the same confirms as their cells, then
  * nameservers, forwarding, renew, auth code); then Pricing and the market
  * actions (with a market account: List at your price, Ownership verification
  * TXT, Price from listings, Delist); then Delete, only for a name no connected
- * account holds (imported or in Archive): a name you hold leaves by turning
- * its auto-renew off (docs/owned-and-archive.md). Otherwise every row in a
+ * account holds (imported or in Archive). Otherwise every row in a
  * view gets the same items: what doesn't apply is greyed with the reason as
  * its tooltip (Registrar as a whole for an imported name). A name in Archive
- * gets a short flat menu: Notes, the two records, Delete.
+ * gets a short flat menu: Notes, the two records, Move back to Owned when
+ * you put it there by hand, and Delete.
  * Disabled outright while a write for this row is in flight.
  */
 export function RowActionsMenu({
@@ -88,6 +91,10 @@ export function RowActionsMenu({
   paid,
   removable,
   onMarkSold,
+  onMarkDropped,
+  onArchive,
+  /** Set when clearing the hand mark puts the name back in Owned. */
+  onRestore,
   onDelete,
   onMarket,
   marketReasons,
@@ -110,13 +117,16 @@ export function RowActionsMenu({
   onAssignFolder: (folderId: string | null) => void;
   /** Why the name is in Archive, or null while you own it. */
   archive: ArchiveLabel | null;
-  /** A sale is on record: Record sale edits it. */
+  /** A sale is on record: Mark as Sold edits it. */
   sold: boolean;
   /** What's recorded as paid, if anything: Record purchase edits it. */
   paid?: 'registered' | 'purchased' | null;
   /** No connected account holds it: Delete applies. */
   removable: boolean;
   onMarkSold: () => void;
+  onMarkDropped: () => void;
+  onArchive: () => void;
+  onRestore?: () => void;
   onDelete: () => void;
   /** Market actions; absent with no market account. */
   onMarket?: (action: MarketAction) => void;
@@ -259,10 +269,30 @@ export function RowActionsMenu({
       {dots}
     </DropdownMenuItem>
   );
+  const putAway = (
+    <>
+      <DropdownMenuItem onSelect={onMarkDropped}>
+        <ArchiveX className={icon} />
+        Mark as Dropped
+        {dots}
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={onArchive}>
+        <Archive className={icon} />
+        Archive
+        {dots}
+      </DropdownMenuItem>
+    </>
+  );
+  const restoreItem = onRestore && (
+    <DropdownMenuItem onSelect={onRestore}>
+      <Undo2 className={icon} />
+      Move back to Owned
+    </DropdownMenuItem>
+  );
   const saleItem = (
     <DropdownMenuItem onSelect={sold ? onEditSale : onMarkSold}>
       <Receipt className={icon} />
-      {sold ? 'Edit sale' : 'Record sale'}
+      {sold ? 'Edit sale' : 'Mark as Sold'}
       {dots}
     </DropdownMenuItem>
   );
@@ -301,6 +331,7 @@ export function RowActionsMenu({
               {notesItem}
               {purchaseItem}
               {saleItem}
+              {restoreItem}
             </>
           ) : (
             <>
@@ -329,6 +360,7 @@ export function RowActionsMenu({
               {notesItem}
               {purchaseItem}
               {saleItem}
+              {putAway}
               <DropdownMenuSeparator />
               <MenuSub
                 icon={<Building2 className={icon} />}

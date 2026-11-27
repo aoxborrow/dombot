@@ -62,6 +62,7 @@ import { BulkNotesDialog } from '../components/domains/BulkNotesDialog';
 import {
   DeleteDomainsDialog,
   BulkSaleDialog,
+  ManualArchiveDialog,
 } from '../components/actions/OwnershipDialogs';
 import { useAppStore } from '../store/app';
 import { domainsCsvFilename, domainsToCsv } from '../../shared/domain-csv';
@@ -394,8 +395,9 @@ function FolderCell({
 /**
  * In Archive the Folder column shows why the name is there instead, as the
  * badges Activity shows (docs/owned-and-archive.md): Sold, Deleted (the
- * lookup says nobody holds it), Expired (it left after expiry), or Removed
- * (it left early with no sale recorded; review it on Activity).
+ * lookup says nobody holds it), Expired (it left after expiry), Dropped,
+ * Archived (you put it there), or Removed (it left early with no sale
+ * recorded; review it on Activity).
  */
 function ArchiveStatusCell({ label }: { label: ArchiveLabel | null }) {
   if (!label) return null;
@@ -412,7 +414,8 @@ const ARCHIVE_TITLE: Record<ArchiveLabel, string> = {
   sold: 'You recorded a sale',
   deleted: 'Not registered: the registration lookup found no holder',
   expired: 'Left your accounts after its expiry date',
-  dropped: 'Left your accounts before expiry, and you marked it dropped',
+  dropped: 'You marked it dropped, or it left before expiry and you said so',
+  archived: 'You moved it to Archive. It may still be listed at the registrar.',
   removed: 'Left your accounts before expiry, with no sale recorded',
 };
 
@@ -948,9 +951,9 @@ const isHeld = (d: Domain) => !d.departed && d.source !== 'imported';
 export default function Domains() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  // Owned and Listings are what you hold, Listings with its market columns;
-  // Archive is what you no longer have (Sold, Deleted, Expired, or Removed),
-  // worked out in shared/ownership.ts.
+  // Owned and Listings are what you hold, Listings with its market columns.
+  // Archive is a sale you recorded, a name you marked dropped or archived,
+  // or a name you no longer have. Worked out in shared/ownership.ts.
   const archiveView = params.get('view') === 'archive';
   const {
     portfolio,
@@ -969,6 +972,7 @@ export default function Domains() {
     exchangeRates,
     folders,
     folderAssignments,
+    manualArchives,
     assignFolder,
     bulk,
     purchases,
@@ -1325,11 +1329,12 @@ export default function Domains() {
           ownership.get(key),
           registrationLookups[key]?.registered,
           now,
+          manualArchives[key],
         ),
       );
     }
     return out;
-  }, [shown, ownership, registrationLookups, now]);
+  }, [shown, ownership, registrationLookups, now, manualArchives]);
   const standingOfRow = useCallback(
     (d: Domain): Standing => {
       const known = standings.get(d);
@@ -1340,9 +1345,10 @@ export default function Domains() {
         ownership.get(key),
         registrationLookups[key]?.registered,
         now,
+        manualArchives[key],
       );
     },
-    [standings, ownership, registrationLookups, now],
+    [standings, ownership, registrationLookups, now, manualArchives],
   );
   const archiveLabelOf = useCallback(
     (d: Domain): ArchiveLabel | null => standingOfRow(d).label,
@@ -1565,6 +1571,7 @@ export default function Domains() {
       deleted: 0,
       expired: 0,
       dropped: 0,
+      archived: 0,
       removed: 0,
     };
     const renew: Record<AutoRenewChoice, number> = {
@@ -2223,6 +2230,18 @@ export default function Domains() {
       else setOwnershipDialog({ action, domains: unpaid });
       return;
     }
+    if (action === 'dropped' || action === 'archive' || action === 'restore') {
+      const marked =
+        action === 'restore'
+          ? ds.filter((d) => manualArchives[toAscii(d.domainName)])
+          : ds;
+      if (marked.length === 0) {
+        toast.info('None of these were put in Archive by hand.');
+        return;
+      }
+      setOwnershipDialog({ action, domains: marked });
+      return;
+    }
     if (action !== 'sold') {
       setOwnershipDialog({ action, domains: ds });
       return;
@@ -2378,6 +2397,20 @@ export default function Domains() {
               paid={paidKind(d)}
               removable={d.departed === true || d.source === 'imported'}
               onMarkSold={() => openOwnership('sold', [d])}
+              onMarkDropped={() => openOwnership('dropped', [d])}
+              onArchive={() => openOwnership('archive', [d])}
+              onRestore={
+                manualArchives[key] &&
+                !standingOf(
+                  d,
+                  ownership.get(key),
+                  registrationLookups[key]?.registered,
+                  now,
+                  null,
+                ).archived
+                  ? () => openOwnership('restore', [d])
+                  : undefined
+              }
               onDelete={() => openOwnership('delete', [d])}
               onMarket={
                 marketsOn
@@ -2853,6 +2886,25 @@ export default function Domains() {
             return (
               <BulkSaleDialog
                 items={ownershipItems(ds)}
+                onDone={done}
+                onClose={close}
+              />
+            );
+          if (
+            action === 'dropped' ||
+            action === 'archive' ||
+            action === 'restore'
+          )
+            return (
+              <ManualArchiveDialog
+                domains={ds}
+                reason={
+                  action === 'dropped'
+                    ? 'dropped'
+                    : action === 'archive'
+                      ? 'archived'
+                      : null
+                }
                 onDone={done}
                 onClose={close}
               />

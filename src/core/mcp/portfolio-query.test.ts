@@ -6,6 +6,7 @@ import {
 } from '../../shared/ipc';
 import { importedRow } from '../../shared/imported-domains';
 import { archiveRows, ownershipByDomain } from '../../shared/ownership';
+import type { MarketSale } from '../../shared/markets';
 import type { DomainEvent } from '../../shared/domain-events';
 import {
   DEFAULT_LIMIT,
@@ -324,18 +325,42 @@ describe('ownership', () => {
     updatedAt: null,
     ...patch,
   });
-  const ownership = ownershipByDomain([
-    at('E1', { domain: 'escrow.com', accountId: 'dynadot' }),
-    at('E2', { domain: 'gone.com', type: 'removed', accountId: 'old-account' }),
-    at('E3', {
-      domain: 'lapsed.com',
-      type: 'removed',
-      source: 'sync',
-      date: '2026-09-20',
-      expires: '2026-09-01',
-      accountId: 'dynadot',
-    }),
-  ]);
+  const marketSale: MarketSale = {
+    market: 'afternic',
+    accountId: 'afternic-1',
+    id: 'tx-1',
+    name: 'escrow.com',
+    soldOn: '2026-09-01',
+    status: 'in_progress',
+    statusRaw: 'PENDING_TRANSFER',
+    kind: 'buy_now',
+    price: '2499',
+    commission: null,
+    commissionEstimated: false,
+    net: null,
+    currency: 'USD',
+    installments: null,
+    paidOutOn: null,
+    action: 'transfer',
+  };
+  const ownership = ownershipByDomain(
+    [
+      at('E2', {
+        domain: 'gone.com',
+        type: 'removed',
+        accountId: 'old-account',
+      }),
+      at('E3', {
+        domain: 'lapsed.com',
+        type: 'removed',
+        source: 'sync',
+        date: '2026-09-20',
+        expires: '2026-09-01',
+        accountId: 'dynadot',
+      }),
+    ],
+    [marketSale],
+  );
   const soon = new Date(NOW + 10 * 86_400_000);
   const live = [
     domain({ domainName: 'kept.com', autoRenew: true }),

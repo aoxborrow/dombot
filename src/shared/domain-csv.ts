@@ -71,6 +71,7 @@ const STATUS: Record<ArchiveLabel, string> = {
   deleted: 'Deleted',
   expired: 'Expired',
   dropped: 'Dropped',
+  archived: 'Archived',
   removed: 'Removed',
 };
 

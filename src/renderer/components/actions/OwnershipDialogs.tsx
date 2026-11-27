@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { toAscii } from '../../../shared/domain-name';
 import type { OwnershipItem } from '../../../shared/ipc';
+import type { ManualArchiveReason } from '../../../shared/ownership';
 import {
   DEFAULT_CURRENCY,
   DEFAULT_NUMBER_FORMAT,
@@ -84,10 +85,10 @@ export function BulkSaleDialog({
 
   return (
     <ActionDialog
-      title="Record sale"
+      title="Mark as Sold"
       names={items.map((i) => i.domainName)}
-      description="Records a sale for each name at the date and price below. A name still in one of your accounts stays in Owned as Sold until the buyer takes it. Nothing changes at the registrar."
-      actionLabel="Record sale"
+      description="Records a sale for each name at the date and price below, and moves them to Archive as Sold. Nothing changes at the registrar."
+      actionLabel="Mark as Sold"
       focusId="bulk-sale-price"
       onConfirm={record}
       onClose={onClose}
@@ -139,6 +140,61 @@ export function DeleteDomainsDialog({
       onConfirm={async () => {
         await deleteDomains(domains.map((d) => d.domainName));
         toast.success(`Deleted ${who(domains)}`);
+        onDone?.();
+      }}
+      onClose={onClose}
+    />
+  );
+}
+
+/**
+ * Mark names dropped or archived, or move them back to Owned. Nothing
+ * changes at the registrar: a name an account still lists stays listed
+ * there until you let it go.
+ */
+export function ManualArchiveDialog({
+  domains,
+  reason,
+  onDone,
+  onClose,
+}: {
+  domains: { domainName: string }[];
+  /** Null moves them back to Owned. */
+  reason: ManualArchiveReason | null;
+  onDone?: () => void;
+  onClose: () => void;
+}) {
+  const setManualArchive = useAppStore((s) => s.setManualArchive);
+  const title =
+    reason === 'dropped'
+      ? 'Mark as Dropped'
+      : reason === 'archived'
+        ? 'Archive'
+        : 'Move back to Owned';
+  const description =
+    reason === null
+      ? `Moves ${who(domains)} back to Owned. Nothing changes at the registrar.`
+      : `Moves ${who(domains)} to Archive${
+          reason === 'dropped' ? ' as Dropped' : ''
+        }. Nothing changes at the registrar. A name an account still lists stays listed there until you let it go.`;
+  return (
+    <ActionDialog
+      title={title}
+      names={domains.map((d) => d.domainName)}
+      description={description}
+      actionLabel={title}
+      onConfirm={async () => {
+        await setManualArchive(
+          domains.map((d) => d.domainName),
+          reason,
+        );
+        toast.success(
+          reason === null
+            ? `Moved ${who(domains)} back to Owned`
+            : reason === 'dropped'
+              ? `Marked ${who(domains)} as dropped`
+              : `Archived ${who(domains)}`,
+        );
         onDone?.();
       }}
       onClose={onClose}
