@@ -53,6 +53,11 @@ import {
 import { isOpenAlert, resolvedIds } from '../../shared/sync-diff';
 import { ARCHIVE_LABEL, accountName } from '../lib/domain-history';
 import {
+  domainLifecycle,
+  type LifecycleFlag,
+  type LifecycleTone,
+} from '../lib/domain-lifecycle';
+import {
   ImportedRegistrarIcon,
   RegistrarLogo,
 } from '../components/RegistrarLogo';
@@ -443,52 +448,34 @@ function FolderMenuContent({
   );
 }
 
-type LifecycleTone = 'redemption' | 'expired' | 'grace' | 'hold';
-
 /** Expired by the date alone, when the registrar's status doesn't say. */
-const EXPIRED = { label: 'Expired', tone: 'expired' as LifecycleTone };
+const EXPIRED: LifecycleFlag = { label: 'Expired', tone: 'expired' };
 
 /**
  * A solid pill per lifecycle state. Expired is red, the past-expiry date's
  * colour (see expiryColor), whether the registrar says so or only the date
  * has passed. Grace (still renewable at the normal price) is fuchsia and
  * redemption (renewable at a fee) purple, so the two read apart from it.
- * Hold (DNS switched off by a registrar/registry lock) is a different,
- * site-down problem and takes a deep red.
+ * Deleted uses that same purple: the name can still be restored. Hold (DNS
+ * switched off by a registrar/registry lock) is a different, site-down
+ * problem and takes a deep red.
  */
 const LIFECYCLE_TONE: Record<LifecycleTone, string> = {
   redemption: 'bg-purple-950 text-purple-100',
+  deleted: 'bg-purple-950 text-purple-100',
   expired: 'bg-red-600 text-white dark:bg-red-700',
   grace: 'bg-fuchsia-600 text-white dark:bg-fuchsia-500',
   hold: 'bg-red-800 text-white',
 };
 
-/**
- * Detects a lifecycle problem from the normalized `status` string. There's no
- * dedicated flag across registrars, so we match the substrings each surfaces:
- * Gandi emits raw EPP codes, GoDaddy/Cloudflare/Spaceship lifecycle enums, and
- * Namecheap/Namesilo an "expired" once detail is fetched. Returns a short label
- * + tone, or null for healthy domains.
- */
-function domainLifecycle(
-  status: string,
-): { label: string; tone: LifecycleTone } | null {
-  const s = status.toLowerCase();
-  if (/redemption|pending_?delete|recoverable|restorable/.test(s)) {
-    return { label: 'Redemption', tone: 'redemption' };
-  }
-  if (/expired/.test(s)) return { label: 'Expired', tone: 'expired' };
-  if (/grace|autorenewperiod|renewperiod/.test(s)) {
-    return { label: 'Grace', tone: 'grace' };
-  }
-  if (/hold/.test(s)) return { label: 'Hold', tone: 'hold' };
-  return null;
+/** Hold and Deleted sit beside the name. The others sit in the Expires column. */
+function besideName(tone: LifecycleTone): boolean {
+  return tone === 'hold' || tone === 'deleted';
 }
 
-/** A distinctly-colored pill per lifecycle state; nothing when healthy. No
- *  tooltip: a click on it, like anywhere in the Domain cell, opens the row
- *  menu. `hold` picks the states it shows: Hold beside the name (DNS is off,
- *  not an expiry matter), or the expiry ones in the Expires column. */
+/** A distinctly-colored pill per lifecycle state; nothing when healthy.
+ *  `hold` picks the slot (see besideName). Only Deleted has hover text. A
+ *  click on the pill, like anywhere in the Domain cell, opens the row menu. */
 function LifecycleBadge({
   status,
   hold,
@@ -497,10 +484,10 @@ function LifecycleBadge({
   status: string;
   hold: boolean;
   /** A state worked out elsewhere (Expired by the date), in place of the status's. */
-  flag?: { label: string; tone: LifecycleTone };
+  flag?: LifecycleFlag;
 }) {
   const flag = given ?? domainLifecycle(status);
-  if (!flag || (flag.tone === 'hold') !== hold) return null;
+  if (!flag || besideName(flag.tone) !== hold) return null;
   return (
     <Badge
       className={cn(
@@ -508,6 +495,7 @@ function LifecycleBadge({
         'border-transparent px-1.5 py-0 font-sans text-[11px] compact:px-1 compact:text-[10px]',
         LIFECYCLE_TONE[flag.tone],
       )}
+      title={flag.title}
     >
       {flag.label}
     </Badge>
@@ -790,10 +778,11 @@ const COLUMNS: Column[] = [
       const color = expiryColor(days);
       // Past expiry, the registrar's Expired / Grace / Redemption takes the
       // countdown's place: the colour already says how long ago.
-      // Past the date with no registrar state, it's Expired too.
+      // Past the date with no registrar state, it's Expired too. Deleted
+      // stays beside the name, so the countdown here is left alone.
       const lifecycle = domainLifecycle(d.status);
       const state =
-        lifecycle && lifecycle.tone !== 'hold'
+        lifecycle && !besideName(lifecycle.tone)
           ? lifecycle
           : days !== null && days < 0
             ? EXPIRED
