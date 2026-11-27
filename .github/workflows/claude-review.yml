@@ -33,3 +33,5 @@ jobs:
       id-token: write
       statuses: write # the shared review records the commit it reviewed
     uses: aoxborrow/skills/.github/workflows/reusable-claude-review.yml@main
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
